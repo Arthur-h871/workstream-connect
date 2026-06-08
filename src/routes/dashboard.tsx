@@ -5,7 +5,11 @@ import { AppShell } from "@/components/AppShell";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — Marco" }, { name: "description", content: "Resumo do seu trabalho, tarefas e produtividade." }] }),
-  component: Dashboard,
+  component: () => (
+    <AppShell>
+      <Dashboard />
+    </AppShell>
+  ),
 });
 
 const recordings = [
@@ -242,9 +246,3 @@ function Chip({ color, children }: { color: "copper" | "teal" | "success"; child
   return <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${cls}`}>{children}</span>;
 }
 
-// Wrap with shell
-const _orig = Dashboard;
-function DashboardWithShell() {
-  return <AppShell>{_orig()}</AppShell>;
-}
-Route.options.component = DashboardWithShell;
