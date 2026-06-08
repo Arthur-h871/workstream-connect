@@ -9,38 +9,195 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TarefasOrgRouteImport } from './routes/tarefas-org'
+import { Route as TarefasRouteImport } from './routes/tarefas'
+import { Route as PerfilRouteImport } from './routes/perfil'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as CadastroRouteImport } from './routes/cadastro'
+import { Route as ApontamentosRouteImport } from './routes/apontamentos'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminMembrosRouteImport } from './routes/admin.membros'
 
+const TarefasOrgRoute = TarefasOrgRouteImport.update({
+  id: '/tarefas-org',
+  path: '/tarefas-org',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TarefasRoute = TarefasRouteImport.update({
+  id: '/tarefas',
+  path: '/tarefas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PerfilRoute = PerfilRouteImport.update({
+  id: '/perfil',
+  path: '/perfil',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CadastroRoute = CadastroRouteImport.update({
+  id: '/cadastro',
+  path: '/cadastro',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApontamentosRoute = ApontamentosRouteImport.update({
+  id: '/apontamentos',
+  path: '/apontamentos',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminMembrosRoute = AdminMembrosRouteImport.update({
+  id: '/admin/membros',
+  path: '/admin/membros',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/apontamentos': typeof ApontamentosRoute
+  '/cadastro': typeof CadastroRoute
+  '/dashboard': typeof DashboardRoute
+  '/login': typeof LoginRoute
+  '/perfil': typeof PerfilRoute
+  '/tarefas': typeof TarefasRoute
+  '/tarefas-org': typeof TarefasOrgRoute
+  '/admin/membros': typeof AdminMembrosRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/apontamentos': typeof ApontamentosRoute
+  '/cadastro': typeof CadastroRoute
+  '/dashboard': typeof DashboardRoute
+  '/login': typeof LoginRoute
+  '/perfil': typeof PerfilRoute
+  '/tarefas': typeof TarefasRoute
+  '/tarefas-org': typeof TarefasOrgRoute
+  '/admin/membros': typeof AdminMembrosRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/apontamentos': typeof ApontamentosRoute
+  '/cadastro': typeof CadastroRoute
+  '/dashboard': typeof DashboardRoute
+  '/login': typeof LoginRoute
+  '/perfil': typeof PerfilRoute
+  '/tarefas': typeof TarefasRoute
+  '/tarefas-org': typeof TarefasOrgRoute
+  '/admin/membros': typeof AdminMembrosRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/apontamentos'
+    | '/cadastro'
+    | '/dashboard'
+    | '/login'
+    | '/perfil'
+    | '/tarefas'
+    | '/tarefas-org'
+    | '/admin/membros'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/apontamentos'
+    | '/cadastro'
+    | '/dashboard'
+    | '/login'
+    | '/perfil'
+    | '/tarefas'
+    | '/tarefas-org'
+    | '/admin/membros'
+  id:
+    | '__root__'
+    | '/'
+    | '/apontamentos'
+    | '/cadastro'
+    | '/dashboard'
+    | '/login'
+    | '/perfil'
+    | '/tarefas'
+    | '/tarefas-org'
+    | '/admin/membros'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApontamentosRoute: typeof ApontamentosRoute
+  CadastroRoute: typeof CadastroRoute
+  DashboardRoute: typeof DashboardRoute
+  LoginRoute: typeof LoginRoute
+  PerfilRoute: typeof PerfilRoute
+  TarefasRoute: typeof TarefasRoute
+  TarefasOrgRoute: typeof TarefasOrgRoute
+  AdminMembrosRoute: typeof AdminMembrosRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/tarefas-org': {
+      id: '/tarefas-org'
+      path: '/tarefas-org'
+      fullPath: '/tarefas-org'
+      preLoaderRoute: typeof TarefasOrgRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tarefas': {
+      id: '/tarefas'
+      path: '/tarefas'
+      fullPath: '/tarefas'
+      preLoaderRoute: typeof TarefasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/perfil': {
+      id: '/perfil'
+      path: '/perfil'
+      fullPath: '/perfil'
+      preLoaderRoute: typeof PerfilRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cadastro': {
+      id: '/cadastro'
+      path: '/cadastro'
+      fullPath: '/cadastro'
+      preLoaderRoute: typeof CadastroRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/apontamentos': {
+      id: '/apontamentos'
+      path: '/apontamentos'
+      fullPath: '/apontamentos'
+      preLoaderRoute: typeof ApontamentosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,11 +205,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/membros': {
+      id: '/admin/membros'
+      path: '/admin/membros'
+      fullPath: '/admin/membros'
+      preLoaderRoute: typeof AdminMembrosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApontamentosRoute: ApontamentosRoute,
+  CadastroRoute: CadastroRoute,
+  DashboardRoute: DashboardRoute,
+  LoginRoute: LoginRoute,
+  PerfilRoute: PerfilRoute,
+  TarefasRoute: TarefasRoute,
+  TarefasOrgRoute: TarefasOrgRoute,
+  AdminMembrosRoute: AdminMembrosRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
