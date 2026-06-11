@@ -1,0 +1,266 @@
+---
+description: Guia para expandir ou executar passos do planejamento em docs/planejamentos/implementacao_backend/
+globs: docs/planejamentos/**,backend/**
+alwaysApply: false
+---
+
+# Planejamento de Implementação do Backend
+
+## Localização
+
+```
+docs/planejamentos/implementacao_backend/
+├── main.md                  ← esqueleto com os 23 passos (não editar)
+├── passo_X.md               ← um arquivo por passo expandido
+├── backend_architecture.md  ← arquitetura, estrutura de pastas, services
+└── fluxo_cadastro.md        ← fluxo completo de cadastro + aprovação admin
+```
+
+---
+
+## Status dos passos
+
+| Passo | Título | Status |
+|-------|--------|--------|
+| 1 | Criar projeto Supabase e configurar variáveis de ambiente | ✅ Expandido |
+| 2 | Executar a migration do banco de dados | ✅ Expandido |
+| 3 | Instalar e inicializar o cliente Supabase no frontend | ✅ Expandido |
+| 4 | Autenticação: login | ✅ Expandido |
+| 5 | Autenticação: cadastro com código de organização | ✅ Expandido |
+| 6 | Guard de rotas (proteção de páginas autenticadas) | ✅ Expandido |
+| 7 | Sessão persistida e logout | ✅ Expandido |
+| 8 | Carregamento do perfil e organização | ✅ Expandido |
+| 9 | Tarefas pessoais: CRUD completo | ✅ Expandido |
+| 10 | Projetos da organização: CRUD | ✅ Expandido |
+| 11 | Tarefas da organização: CRUD | ✅ Expandido |
+| 12 | Apontamentos: listagem e criação manual | ⬜ Pendente |
+| 13 | Apontamentos: vinculação de tarefas | ⬜ Pendente |
+| 14 | Dashboard: dados reais | ⬜ Pendente |
+| 15 | Perfil: edição de dados, avatar e senha | ⬜ Pendente |
+| 16 | Membros da organização (admin) | ⬜ Pendente |
+| 17 | Notificações em tempo real | ⬜ Pendente |
+| 18 | Sessões de captura: controle Start / Pause / Stop | ⬜ Pendente |
+| 19 | Screenshots: galeria e curação | ⬜ Pendente |
+| 20 | Agente Python | ⬜ Pendente |
+| 21 | Edge Function: generate-report | ⬜ Pendente |
+| 22 | Edge Function: cleanup-screenshots (cron) | ⬜ Pendente |
+| 23 | Tipos TypeScript gerados pelo Supabase CLI | ⬜ Pendente |
+
+---
+
+## Convenções arquiteturais estabelecidas nos passos 1–11
+
+**Ler `docs/planejamentos/implementacao_backend/backend_architecture.md` antes de expandir qualquer passo.**
+
+### Estrutura de pastas do backend
+
+```
+backend/
+└── api/
+    ├── supabase.ts          ← instância única do cliente (NÃO fica em src/)
+    └── services/
+        ├── auth.service.ts
+        ├── users.service.ts
+        ├── organizations.service.ts
+        ├── apontamentos.service.ts
+        ├── tarefas.service.ts
+        ├── projects.service.ts
+        ├── org-tasks.service.ts
+        ├── sessions.service.ts
+        ├── screenshots.service.ts
+        └── notifications.service.ts
+```
+
+**O frontend nunca importa `supabase` diretamente** — só importa funções dos services.
+
+### Rota layout autenticada
+
+A partir do passo 6, todas as rotas autenticadas ficam sob `/_authenticated`:
+
+```
+src/routes/
+├── _authenticated.tsx          ← layout: beforeLoad com guard + retorna { profile }
+├── _authenticated.dashboard.tsx
+├── _authenticated.apontamentos.tsx
+├── _authenticated.tarefas.tsx
+├── _authenticated.tarefas-org.tsx
+├── _authenticated.tarefas-org_.$projectId.tsx
+├── _authenticated.perfil.tsx
+└── _authenticated.admin.membros.tsx
+```
+
+O `context.profile` contém: `id`, `full_name`, `avatar_url`, `role`, `organization_id`.  
+O `loader` das rotas usa `context.profile` — não chama `getSession()` novamente.
+
+### Imports de services
+
+```ts
+// correto
+import { getPersonalTasks } from 'backend/api/services/tarefas.service'
+
+// errado
+import { supabase } from '@/lib/supabase'
+```
+
+### Package manager
+
+Usar **bun** nos passos:
+```bash
+bun add <pacote>          # não npm install
+bun run lint              # verificação de qualidade
+```
+
+### Padrão de debounce
+
+Sem biblioteca externa — `useRef<ReturnType<typeof setTimeout> | null>` com `clearTimeout` + 800ms.
+
+### Padrão de otimistic update
+
+Atualizar estado local imediatamente antes de chamar o service. Não usar `useQuery` com `invalidateQueries` para updates inline — o estado local é a fonte de verdade durante a sessão.
+
+---
+
+## Estado atual do frontend para os passos pendentes
+
+### Passo 12 — `/apontamentos` (`src/routes/apontamentos.tsx`)
+- `const items: Item[] = []` — lista hardcoded vazia
+- Modal `AddTaskModal` com `const orgTasks: { name: string; project: string }[] = []`
+- Sem loader, sem route guard, sem service
+- Estrutura: painel esquerdo (lista) + painel direito (detalhe)
+- Rota atual: `/apontamentos` → deve migrar para `/_authenticated/apontamentos`
+
+### Passo 13 — continuação de `/apontamentos`
+- Depende do passo 12
+- Vinculação de tarefas pessoais + org ao apontamento
+- Tabelas: `apontamento_personal_tasks`, `apontamento_org_tasks` (status: `started`/`concluded`)
+
+### Passo 14 — `/dashboard` (`src/routes/dashboard.tsx`)
+- `const recordings: [] = []`, `const priorityTasks: [] = []`, `const orgTasks: [] = []`
+- `Heatmap` sempre mostra todos os dias como `active: false`
+- `StatCard` com valor `"—"` em todos os cards
+- Depende de: passos 9, 11, 12 (tarefas e apontamentos)
+
+### Passo 15 — `/perfil` (`src/routes/perfil.tsx`)
+- `Field` sem value/onChange — inputs não controlados
+- Avatar placeholder sem upload
+- Seções: foto, informações pessoais (nome + email), senha
+- Sem dados do profile, sem horas/streak
+
+### Passo 16 — `/admin/membros` (`src/routes/admin.membros.tsx`)
+- `const members: Member[] = []` — sem aba de pendentes
+- `const orgId = ""` — código da org não carregado
+- Sem ações reais (promover admin, remover membro, rejeitar pendente)
+- Fluxo completo em `docs/planejamentos/implementacao_backend/fluxo_cadastro.md`
+
+### Passo 17 — `NotificationBell` em `AppShell.tsx`
+- Dropdown abre mas mostra "Nenhuma notificação" fixo
+- Sem Realtime, sem query ao banco
+
+### Passo 18 — `Recorder` em `dashboard.tsx`
+- Estado local apenas: `useState<"idle" | "recording" | "paused">`
+- Sem chamada ao banco, sem create/pause/stop de `capture_sessions`
+- Agente Python escuta mudanças via Supabase Realtime
+
+### Passo 19 — galeria dentro de `/apontamentos`
+- Seção "Prints capturados · 0" com placeholder fixo
+- Depende do passo 12 (apontamento carregado) e passo 18 (sessão vinculada)
+
+### Passos 20–22 — Python agent + Edge Functions
+- Código novo, não relacionado a arquivos existentes do frontend
+- Estrutura: `agent/` na raiz (Python) + `supabase/functions/` (Deno)
+
+### Passo 23 — Tipos TypeScript
+- `bunx supabase gen types typescript --project-id <id> > src/lib/database.types.ts`
+- Pode ser feito a qualquer momento após o passo 2
+
+---
+
+## Template de passo_X.md
+
+Ao criar ou expandir um passo, seguir **exatamente** esta estrutura:
+
+```markdown
+# Passo N — Título do passo
+
+## Objetivo
+Uma frase: o que o sistema será capaz de fazer após este passo.
+
+---
+
+## Estado após o Passo N-1
+- Bullet points: quais arquivos existem e o que cada um exporta/faz
+- Estado do frontend: qual dado está mockado, qual arquivo de rota está envolvido
+
+---
+
+## Decisões de design (ou Escopo deste passo)
+Tabela com decisões já tomadas. Evita re-debater durante a execução.
+
+---
+
+## Contexto técnico
+Explicações sobre padrões, por que uma abordagem foi escolhida sobre outra.
+Cada item deve ser um parágrafo com **negrito** no título da decisão.
+
+---
+
+## Implementação
+
+### N.1 — Descrição curta da subtarefa
+
+**Arquivo:** `caminho/do/arquivo.ts` (novo arquivo | modificar)
+
+- [ ] Ação específica a executar
+
+\`\`\`ts
+// código completo e pronto para colar
+\`\`\`
+
+---
+
+### N.2 — Próxima subtarefa
+...
+
+---
+
+## Verificação manual
+
+### Cenário 1 — Nome do cenário
+1. Passos numerados
+2. **Esperado:** resultado observável
+
+---
+
+## Requisitos para considerar concluído
+- [ ] Requisito concreto e verificável
+- [ ] ...
+
+---
+
+## O que não fazer
+- Antipadrão explícito com explicação de por que é errado
+
+---
+
+## Próximo Passo
+Após concluir: executar `passo_N+1.md` — descrição do próximo.
+```
+
+---
+
+## O que ler antes de expandir um passo
+
+| Passo | Arquivos a ler |
+|-------|---------------|
+| 12 | `src/routes/apontamentos.tsx`, `docs/DATABASE_SCHEMA.md` (apontamentos), `backend_architecture.md` |
+| 13 | `passo_12.md`, `docs/DATABASE_SCHEMA.md` (apontamento_personal_tasks, apontamento_org_tasks) |
+| 14 | `src/routes/dashboard.tsx`, `passo_12.md` (ou resumo), `docs/DATABASE_SCHEMA.md` (campos calculados) |
+| 15 | `src/routes/perfil.tsx`, `backend_architecture.md` (users.service), `docs/DATABASE_SCHEMA.md` (profiles) |
+| 16 | `src/routes/admin.membros.tsx`, `fluxo_cadastro.md`, `backend_architecture.md` (organizations.service) |
+| 17 | `src/components/AppShell.tsx`, `docs/DATABASE_SCHEMA.md` (notifications), `backend_architecture.md` |
+| 18 | `src/routes/dashboard.tsx` (Recorder), `docs/DATABASE_SCHEMA.md` (capture_sessions), `backend_architecture.md` |
+| 19 | `passo_18.md`, `docs/DATABASE_SCHEMA.md` (screenshots), `src/routes/apontamentos.tsx` |
+| 20 | `docs/ARQUITETURA_V2.md`, `docs/DATABASE_SCHEMA.md` |
+| 21 | `docs/ARQUITETURA_V2.md`, `docs/DATABASE_SCHEMA.md` (apontamentos, screenshots) |
+| 22 | `docs/DATABASE_SCHEMA.md` (screenshots, organizations.retention_days) |
+| 23 | `passo_1.md` (project-id já configurado) |

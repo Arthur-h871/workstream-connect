@@ -1,0 +1,95 @@
+---
+description: Cadastro de organização — Edge Function, createOrganization em organizations.service.js, UI fina em cadastro.tsx
+globs: supabase/functions/create-organization/**,backend/api/services/organizations.service.js,src/routes/cadastro.tsx
+alwaysApply: false
+---
+
+# Cadastro de Organização
+
+Planejamento: `docs/planejamentos/cadastro-org/main.md`
+
+## Arquitetura (3 camadas)
+
+```
+cadastro.tsx          → formulário + validação + chama createOrganization()
+organizations.service → createOrganization() = invoke + signIn + { orgCode, error }
+Edge Function         → service_role: user + org + profile
+```
+
+**Regra:** `cadastro.tsx` nunca importa `supabase`, nunca faz `invoke`, `signIn` ou `signUp` para criação de org.
+
+---
+
+## `organizations.service.ts` — `createOrganization`
+
+Função única de integração. Adicionar após `removeMember`.
+
+```ts
+import { signIn } from "backend/api/services/auth.service";
+
+export async function createOrganization(data: {
+  adminName: string;
+  adminEmail: string;
+  adminPassword: string;
+  orgName: string;
+  orgPassword: string;
+}): Promise<{ orgCode: string | null; error: string | null }> {
+  const { data: result, error: fnError } = await supabase.functions.invoke(
+    "create-organization",
+    { body: data },
+  );
+
+  if (fnError || !result?.orgCode) {
+    return {
+      orgCode: null,
+      error: result?.error ?? fnError?.message ?? "Erro ao criar organização",
+    };
+  }
+
+  const { error: signInError } = await signIn(data.adminEmail, data.adminPassword);
+  if (signInError) {
+    return {
+      orgCode: null,
+      error: "Organização criada, mas não foi possível entrar automaticamente. Tente fazer login manualmente.",
+    };
+  }
+
+  return { orgCode: result.orgCode, error: null };
+}
+```
+
+Detalhes: `docs/planejamentos/cadastro-org/passo_3.md`
+
+---
+
+## Edge Function `create-organization`
+
+Detalhes: `docs/planejamentos/cadastro-org/passo_2.md`
+
+Sequência: createUser (sem `organization_code`) → insert org → insert profile `tenant_admin` → user_settings → `{ orgCode }`.
+
+---
+
+## `cadastro.tsx` — UI fina (modo org)
+
+Único import de negócio para criar org:
+
+```ts
+import { createOrganization } from "backend/api/services/organizations.service";
+```
+
+No submit do step `org-form`, apenas:
+
+```ts
+const { orgCode: code, error: createError } = await createOrganization({
+  adminName: adminForm.nome,
+  adminEmail: adminForm.email,
+  adminPassword: adminForm.senha,
+  orgName: orgForm.orgNome,
+  orgPassword: orgForm.orgSenha,
+});
+```
+
+- Exibir `createError` inline — não reinterpretar
+- Step `token`: mostrar `orgCode`, botão navega para `/dashboard` (sessão já ativa pelo service)
+- Validação de formulário (senhas iguais, mínimo de chars) fica na rota — lógica de backend fica no service

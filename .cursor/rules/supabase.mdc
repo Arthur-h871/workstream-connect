@@ -1,0 +1,224 @@
+---
+description: Padrões de integração com Supabase — client, auth, queries, RLS e Realtime
+globs: src/lib/**,src/routes/**,src/hooks/**
+alwaysApply: false
+---
+
+# Supabase — Padrões de Integração
+
+## Client
+
+O client Supabase fica em `src/lib/supabase.ts` (a criar):
+
+```ts
+import { createClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/database.types";
+
+export const supabase = createClient<Database>(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
+```
+
+Variáveis de ambiente necessárias em `.env`:
+```
+VITE_SUPABASE_URL=https://<project>.supabase.co
+VITE_SUPABASE_ANON_KEY=<anon-key>
+```
+
+Importar sempre de `@/lib/supabase`. Nunca instanciar `createClient` fora desse arquivo.
+
+---
+
+## Tipos
+
+Gerar os tipos com a CLI do Supabase:
+
+```bash
+bunx supabase gen types typescript --project-id <id> > src/lib/database.types.ts
+```
+
+Sempre tipar queries com `Database`:
+
+```ts
+import type { Tables, Enums } from "@/lib/database.types";
+
+type Profile = Tables<"profiles">;
+type UserRole = Enums<"user_role">;
+```
+
+---
+
+## Autenticação
+
+### Verificar sessão atual
+
+```ts
+const { data: { session } } = await supabase.auth.getSession();
+// Preferir getUser() para verificar token no servidor:
+const { data: { user } } = await supabase.auth.getUser();
+```
+
+### Guard de rota (TanStack Router)
+
+```ts
+export const Route = createFileRoute("/dashboard")({
+  beforeLoad: async ({ context }) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw redirect({ to: "/login" });
+  },
+});
+```
+
+### Estado de auth global
+
+Escutar mudanças de sessão em `__root.tsx`:
+
+```ts
+useEffect(() => {
+  const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    (_event, session) => {
+      // atualizar contexto/store
+    }
+  );
+  return () => subscription.unsubscribe();
+}, []);
+```
+
+---
+
+## Queries com TanStack Query
+
+Sempre usar `@tanstack/react-query` para queries ao Supabase no frontend:
+
+```ts
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+
+export function useProfile(userId: string) {
+  return useQuery({
+    queryKey: ["profile", userId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+```
+
+- Funções de query ficam em `src/lib/api/` (um arquivo por domínio: `profiles.ts`, `tasks.ts`, etc.)
+- `queryKey` sempre começa com o nome da tabela/entidade
+- Sempre lançar `error` para que o React Query trate erros de forma consistente
+
+---
+
+## Mutations
+
+```ts
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+
+export function useUpdateTask() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: TaskStatus }) => {
+      const { error } = await supabase
+        .from("personal_tasks")
+        .update({ status })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["personal_tasks"] });
+    },
+  });
+}
+```
+
+---
+
+## RLS — Row Level Security
+
+**Todas as tabelas têm RLS habilitado.** As queries retornam apenas os dados que o usuário autenticado tem direito de ver. Não é necessário filtrar manualmente por `user_id` na maioria dos casos — o RLS faz isso via `auth.uid()`.
+
+Funções helper disponíveis no banco (SECURITY DEFINER):
+- `get_my_org_id()` — retorna `organization_id` do usuário autenticado
+- `get_my_role()` — retorna `role` do usuário
+- `is_admin()` — retorna `true` se role é `tenant_admin` ou `master`
+
+### Roles e permissões
+
+| Role | Permissões |
+|------|------------|
+| `tenant_user` | Lê dados da própria org; gerencia próprias tarefas e apontamentos |
+| `tenant_admin` | Tudo do `tenant_user` + gerencia membros, projetos, org_tasks |
+| `master` | Cria organizações (service role apenas) |
+
+---
+
+## Realtime
+
+Para `capture_sessions` (controle start/pause/stop do agente Python):
+
+```ts
+useEffect(() => {
+  const channel = supabase
+    .channel("session-changes")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "capture_sessions", filter: `user_id=eq.${userId}` },
+      (payload) => {
+        // atualizar estado local
+      }
+    )
+    .subscribe();
+
+  return () => { supabase.removeChannel(channel); };
+}, [userId]);
+```
+
+---
+
+## Storage
+
+Bucket `screenshots` (privado) — path: `{user_id}/{YYYY-MM-DD}/{screenshot_id}.jpg`  
+Bucket `avatars` (público) — path: `{user_id}.jpg`
+
+```ts
+// URL assinada para screenshot privado
+const { data } = await supabase.storage
+  .from("screenshots")
+  .createSignedUrl(storagePath, 3600); // 1h de validade
+```
+
+---
+
+## Tratamento de erro
+
+```ts
+const { data, error } = await supabase.from("...").select("*");
+
+if (error) {
+  // Logar para debug
+  console.error("[supabase]", error.message);
+  // Lançar para o React Query ou tratar na UI
+  throw error;
+}
+```
+
+Mensagens de erro ao usuário sempre em português.
+
+---
+
+## Fluxo de cadastro
+
+1. Usuário informa `full_name` + `org_code` + email + senha
+2. Buscar `organization_id` pelo `org_code` em `organizations`
+3. `supabase.auth.signUp({ email, password, options: { data: { full_name, organization_id } } })`
+4. Trigger `handle_new_user` cria automaticamente `member_request` e notifica admins
+5. Usuário vê tela "aguardando aprovação" (consulta `member_requests` próprio)
+6. Admin aceita → profile criado → usuário tem acesso completo

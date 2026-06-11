@@ -1,0 +1,175 @@
+---
+description: Design system do Marco — tokens de cor, tipografia, componentes e padrões visuais
+globs: src/**/*.tsx,src/**/*.css
+alwaysApply: false
+---
+
+# Design System — Marco
+
+## Tema
+
+Dark por padrão. Fundo quente escuro com acentos **copper** (laranja-avermelhado) e **teal** (verde-água).
+
+---
+
+## Tokens de cor (CSS variables em `src/styles.css`)
+
+| Token Tailwind | CSS var | Valor | Uso |
+|----------------|---------|-------|-----|
+| `bg-background` | `--background` | `#121110` | Fundo da página |
+| `bg-surface` | `--surface` | `#1C1917` | Cards, sidebar, painéis |
+| `text-foreground` | `--foreground` | `#FAF7F0` | Texto principal |
+| `text-muted-foreground` | `--muted-foreground` | `#A8A29E` | Labels, sublabels, metadados |
+| `border-border` | `--border` | `#2C2925` | Bordas de cards e inputs |
+| `text-copper` | `--copper` | `#EA580C` | Cor primária de destaque, ações, status ativo |
+| `bg-copper-soft` | `--copper-soft` | `rgba(234,88,12,0.10)` | Background suave de copper |
+| `text-teal` | `--teal` | `#14B8A6` | Cor secundária, projetos, links secundários |
+| `bg-teal-soft` | `--teal-soft` | `rgba(20,184,166,0.10)` | Background suave de teal |
+| `text-destructive` | `--destructive` | `#EF4444` | Erros, deleção |
+| `text-success` | `--success` | `#10B981` | Sucesso, concluído |
+| `bg-primary` | `--primary` | `#EA580C` | Botão primário (= copper) |
+
+---
+
+## Tipografia
+
+- Fonte sans: **Inter** (importada via Google Fonts)
+- Fonte mono: **JetBrains Mono** (para timestamps, counters, valores numéricos)
+- `font-mono` para valores numéricos em destaque (ex: duração, streak)
+
+---
+
+## Raios de borda
+
+| Classe | Valor |
+|--------|-------|
+| `rounded-sm` | 4px |
+| `rounded-md` | 6px (padrão de inputs/botões) |
+| `rounded-lg` | 8px (padrão de cards) |
+
+---
+
+## Classe customizada
+
+```css
+.section-label {
+  /* text-xs uppercase tracking-wide text-muted-foreground */
+}
+```
+
+Usar `section-label` em todos os títulos de seção dentro de cards (não usar `h2`/`h3` nesses casos).
+
+---
+
+## Padrões de layout
+
+### Card padrão
+
+```tsx
+<div className="rounded-lg border border-border bg-surface p-6">
+  <p className="section-label mb-3">Título da seção</p>
+  {/* conteúdo */}
+</div>
+```
+
+### Card com estado vazio
+
+```tsx
+<div className="rounded-lg border border-dashed border-border bg-surface px-4 py-8 text-center text-sm text-muted-foreground">
+  Nenhum item encontrado
+</div>
+```
+
+### Botão primário
+
+```tsx
+<button className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">
+  Ação
+</button>
+```
+
+### Botão ghost/outline
+
+```tsx
+<button className="inline-flex items-center justify-center rounded-md border border-border bg-transparent px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+  Cancelar
+</button>
+```
+
+### Chip / Badge
+
+```tsx
+// copper
+<span className="rounded bg-copper-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-copper">
+  Em andamento
+</span>
+
+// teal
+<span className="rounded bg-teal-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-teal">
+  Projeto
+</span>
+
+// success (concluído)
+<span className="rounded bg-[#10B98119] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#10B981]">
+  Concluído
+</span>
+```
+
+### Admin badge (sidebar)
+
+```tsx
+<span className="ml-auto rounded bg-teal-soft px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-teal">
+  Admin
+</span>
+```
+
+---
+
+## AppShell
+
+**Todas as rotas autenticadas** devem ser envolvidas por `<AppShell>`:
+
+```tsx
+import { AppShell } from "@/components/AppShell";
+
+// Sem título (rota gerencia o próprio header)
+<AppShell>
+  <Componente />
+</AppShell>
+
+// Com título (AppShell renderiza h1 + NotificationBell)
+<AppShell title="Nome da Página">
+  <Componente />
+</AppShell>
+```
+
+Sidebar tem largura fixa `w-60`. Main tem `ml-60`, `max-w-[1400px]`, padding `px-8 py-8`.
+
+---
+
+## Grid de layout
+
+Usar `grid grid-cols-12 gap-6` para layouts de dashboard.  
+Padrão responsivo: `col-span-12 md:col-span-X`.
+
+---
+
+## Radix UI / shadcn
+
+Componentes em `src/components/ui/` seguem shadcn pattern. **Não editar esses arquivos manualmente** — usar `bunx shadcn@latest add <component>` para adicionar novos.
+
+Ao usar primitivos Radix, sempre importar de `@/components/ui/` quando já existir o wrapper shadcn.
+
+---
+
+## Ícones
+
+Usar sempre **Lucide React**. Tamanho padrão: `h-4 w-4`. `strokeWidth={1.75}` na navegação. Não usar outras bibliotecas de ícones.
+
+---
+
+## Acessibilidade
+
+- Sempre incluir `aria-label` em botões que só têm ícone.
+- Manter ordem lógica de foco.
+- Usar elementos semânticos: `<nav>`, `<aside>`, `<main>`, `<section>`.

@@ -1,0 +1,101 @@
+---
+description: Visão geral do projeto Marco (Workstream Connect) — stack, estado atual, estrutura de pastas e domínio
+alwaysApply: true
+---
+
+# Marco — Workstream Connect
+
+## O que é
+
+**Marco** é uma ferramenta de registro de trabalho com IA para equipes. O usuário grava sessões de trabalho via agente Python, a IA gera apontamentos automáticos com base nas screenshots, e o time acompanha tarefas e produtividade pelo frontend.
+
+Nome do produto na UI: **Marco**  
+Nome do repositório: `workstream-connect`
+
+---
+
+## Estado atual
+
+**Frontend completo com dados mockados — backend inexistente.**
+
+Todos os dados das rotas estão hardcoded como arrays vazios ou constantes. Nenhuma chamada real ao Supabase existe ainda. A ordem de implementação do backend está em `docs/BACKEND_INTEGRATION.md`.
+
+---
+
+## Stack
+
+| Camada | Tecnologia |
+|--------|-----------|
+| Framework | TanStack Start (SSR) + TanStack Router (file-based) |
+| UI | React 18 + TypeScript (strict) |
+| Estilo | Tailwind CSS v4 + CSS variables |
+| Componentes | Radix UI primitivos + shadcn patterns |
+| Ícones | Lucide React |
+| Formulários | React Hook Form + Zod |
+| Server state | TanStack Query (@tanstack/react-query) |
+| Backend | Supabase (PostgreSQL + Auth + Storage + Realtime) |
+| Package manager | **bun** (não usar npm/yarn/pnpm) |
+| Build | Vite via `@lovable.dev/vite-tanstack-config` |
+| Linguagem da UI | Português (pt-BR) |
+
+---
+
+## Estrutura de pastas
+
+```
+src/
+├── components/
+│   ├── AppShell.tsx        # Layout autenticado (sidebar + main)
+│   └── ui/                 # Componentes shadcn (não editar manualmente)
+├── hooks/
+│   └── use-mobile.tsx
+├── lib/
+│   ├── api/                # Chamadas Supabase (a criar)
+│   ├── config.server.ts    # Config server-side
+│   └── utils.ts            # cn() e utilitários
+├── routes/
+│   ├── __root.tsx          # Shell HTML + QueryClientProvider
+│   ├── index.tsx           # Redirect para /dashboard ou /login
+│   ├── login.tsx
+│   ├── cadastro.tsx
+│   ├── dashboard.tsx
+│   ├── apontamentos.tsx
+│   ├── tarefas.tsx         # Tarefas pessoais
+│   ├── tarefas-org.tsx     # Tarefas da organização
+│   ├── perfil.tsx
+│   └── admin.membros.tsx   # Apenas tenant_admin
+├── routeTree.gen.ts        # GERADO AUTOMATICAMENTE — não editar
+├── router.tsx
+├── server.ts
+├── start.ts
+└── styles.css              # Design tokens + Tailwind
+```
+
+---
+
+## Domínio (entidades principais)
+
+- **Organization** — empresa/equipe. Cada usuário pertence a uma org.
+- **Profile** — extensão de `auth.users`. Criado pelo admin ao aceitar `member_request`.
+- **member_request** — pedido de entrada pendente. Usuário aguarda aprovação.
+- **Roles:** `master` > `tenant_admin` > `tenant_user`
+- **capture_session** — sessão de captura de tela. Controlada pelo agente Python via Realtime.
+- **apontamento** — registro de trabalho (gerado por IA ou manual). Vinculado a tarefas.
+- **personal_task** — tarefa privada do usuário.
+- **org_task** — tarefa da organização. Vinculada a `project`.
+- **project** — agrupamento de org_tasks. Criado por admins.
+- **notification** — notificação in-app (nova tarefa, aprovação de membro, etc.)
+
+Schema completo em `docs/DATABASE_SCHEMA.md`.
+
+---
+
+## Documentação relevante
+
+| Arquivo | Conteúdo |
+|---------|----------|
+| `docs/DATABASE_SCHEMA.md` | Schema PostgreSQL completo com RLS |
+| `docs/BACKEND_INTEGRATION.md` | Ordem e detalhes de implementação do backend |
+| `docs/ARQUITETURA_V2.md` | Arquitetura geral do sistema |
+| `docs/DATABASE_MIGRATION.sql` | SQL de migração |
+| `docs/planejamentos/implementacao_backend/` | Passos detalhados de implementação |

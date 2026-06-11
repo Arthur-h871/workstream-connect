@@ -1,0 +1,5 @@
+supabase==2.10.0
+python-dotenv==1.0.1
+mss==9.0.2
+Pillow==10.4.0
+websockets==12.0

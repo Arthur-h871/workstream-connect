@@ -1,0 +1,133 @@
+---
+description: Padrões de código, comportamento do agente e regras de qualidade para o projeto Marco
+alwaysApply: true
+---
+
+# Convenções do Projeto
+
+## Comportamento do agente
+
+- **Nunca criar commits** sem o usuário pedir explicitamente.
+- **Nunca rodar `git push`** sem pedido explícito.
+- **Escopo mínimo:** alterar apenas os arquivos necessários para a tarefa. Não refatorar código adjacente sem pedido.
+- **Sempre rodar lint** ao terminar implementações: `bun run lint`
+- **Perguntar antes** de criar arquivos fora de `src/` ou mudar a estrutura de pastas.
+- Responder sempre em **português**.
+
+---
+
+## Package manager
+
+Usar **bun** em todos os comandos:
+
+```bash
+bun install          # instalar dependências
+bun add <pkg>        # adicionar pacote
+bun run dev          # dev server
+bun run build        # build
+bun run lint         # ESLint
+bun run format       # Prettier
+```
+
+Nunca usar `npm`, `yarn`, ou `pnpm`.
+
+---
+
+## TypeScript
+
+- Sempre usar `strict: true` (já configurado no `tsconfig.json`).
+- Preferir `type` a `interface` para shapes de dados simples. Usar `interface` para contratos de componente/classe.
+- Importar tipos com `import type { ... }` quando o valor não é usado em runtime.
+- Path alias `@/` aponta para `src/`. Sempre usar `@/` nos imports internos.
+
+```ts
+// correto
+import { AppShell } from "@/components/AppShell";
+import type { User } from "@/lib/types";
+
+// errado
+import { AppShell } from "../../components/AppShell";
+```
+
+- **Não usar `any`**. Preferir `unknown` quando o tipo é desconhecido.
+- Tipar explicitamente props de componentes com `type Props = { ... }`.
+
+---
+
+## React
+
+- Componentes como **função** — sem class components.
+- Exportar componente de página como `default` apenas via `Route.component`. Componentes internos da rota são funções nomeadas não exportadas.
+- `useState`, `useEffect`, etc: hooks sempre no topo do componente, sem condicionais.
+- Evitar prop drilling: usar contexto ou composição quando necessário.
+
+---
+
+## TanStack Router (roteamento)
+
+- Rotas seguem **file-based routing**: um arquivo em `src/routes/` por rota.
+- `routeTree.gen.ts` é **gerado automaticamente** pelo Vite — nunca editar manualmente.
+- Criar rota com `createFileRoute('/caminho')({ component: ... })`.
+- Rotas aninhadas usam ponto: `admin.membros.tsx` → `/admin/membros`.
+- Navegação com `<Link to="/rota">` ou `useNavigate()`.
+- `beforeLoad` nos loaders para guards de autenticação.
+
+---
+
+## Nomenclatura
+
+| Coisa | Padrão | Exemplo |
+|-------|--------|---------|
+| Componente React | PascalCase | `StatCard`, `NotificationBell` |
+| Arquivo de rota | kebab-case | `tarefas-org.tsx` |
+| Arquivo de componente | PascalCase | `AppShell.tsx` |
+| Hook customizado | `use` + camelCase | `useMobile` |
+| Função utilitária | camelCase | `currentDateLabel()` |
+| Tipo/interface | PascalCase | `NavItem`, `TaskStatus` |
+| Constante de módulo | camelCase | `const nav: NavItem[]` |
+| Variável de ambiente | `VITE_` + SCREAMING_SNAKE | `VITE_SUPABASE_URL` |
+
+---
+
+## Estrutura de arquivo de rota
+
+```tsx
+// 1. Imports externos
+import { createFileRoute } from "@tanstack/react-router";
+
+// 2. Imports internos
+import { AppShell } from "@/components/AppShell";
+
+// 3. Definição da rota (sempre no topo do arquivo)
+export const Route = createFileRoute("/nome-da-rota")({
+  head: () => ({ meta: [{ title: "Título — Marco" }] }),
+  component: () => (
+    <AppShell title="Título">
+      <NomeDaRota />
+    </AppShell>
+  ),
+});
+
+// 4. Tipos locais
+type MinhaProps = { ... };
+
+// 5. Componente principal da página
+function NomeDaRota() {
+  // ...
+}
+
+// 6. Sub-componentes
+function SubComponente({ prop }: MinhaProps) {
+  // ...
+}
+```
+
+---
+
+## Qualidade
+
+- Sem `console.log` em código de produção (remover antes de terminar).
+- Sem código comentado deixado no arquivo.
+- Sem comentários que apenas descrevem o que o código faz — apenas comentários que explicam o *porquê*.
+- Tratar todos os estados da UI: loading, erro, vazio, dados.
+- Textos de UI sempre em português (pt-BR).
