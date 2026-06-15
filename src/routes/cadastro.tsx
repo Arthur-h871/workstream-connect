@@ -276,11 +276,19 @@ function Cadastro() {
             </button>
           </form>
 
-          <div className="mt-5 text-center text-xs text-muted-foreground">
-            Já tem uma conta?{" "}
-            <Link to="/login" className="text-copper hover:underline">
-              Entrar
-            </Link>
+          <div className="mt-5 space-y-3 text-center text-xs text-muted-foreground">
+            <p>
+              Já tem uma conta?{" "}
+              <Link to="/login" className="text-copper hover:underline">
+                Entrar
+              </Link>
+            </p>
+            <p>
+              Quer criar sua própria organização?{" "}
+              <Link to="/cadastro-organizacao" className="text-copper hover:underline">
+                Cadastrar organização
+              </Link>
+            </p>
           </div>
         </div>
       </div>

@@ -12,7 +12,7 @@ import {
 } from "backend/api/services/org-tasks.service";
 import { getOrgMembers, type OrgMember } from "backend/api/services/users.service";
 
-export const Route = createFileRoute("/_authenticated/tarefas-org/$projectId")({
+export const Route = createFileRoute("/_authenticated/tarefas-org_/$projectId")({
   loader: async ({ params, context }) => {
     const [project, tasks, members] = await Promise.all([
       getProject(params.projectId),

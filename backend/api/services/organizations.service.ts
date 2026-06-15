@@ -1,7 +1,40 @@
 import { supabase } from "backend/api/supabase";
 import { signIn } from "backend/api/services/auth.service";
 
-export async function getOrgByCode(code) {
+export type AdminOrgMember = {
+  id: string;
+  full_name: string;
+  avatar_url: string | null;
+  role: "master" | "tenant_admin" | "tenant_user";
+  created_at: string;
+};
+
+export type PendingMember = {
+  id: string;
+  user_id: string;
+  full_name: string;
+  created_at: string;
+};
+
+export type CreateOrganizationData = {
+  adminName: string;
+  adminEmail: string;
+  adminPassword: string;
+  orgName: string;
+  orgPassword: string;
+};
+
+export type CreateOrganizationResult = {
+  orgCode: string | null;
+  error: string | null;
+};
+
+type CreateOrganizationResponse = {
+  orgCode?: string;
+  error?: string;
+};
+
+export async function getOrgByCode(code: string): Promise<{ name: string } | null> {
   const { data, error } = await supabase.rpc("get_org_name_by_code", {
     p_code: code,
   });
@@ -9,7 +42,9 @@ export async function getOrgByCode(code) {
   return { name: data };
 }
 
-export async function getMyOrganization(orgId) {
+export async function getMyOrganization(
+  orgId: string,
+): Promise<{ id: string; name: string; code: string } | null> {
   const { data, error } = await supabase
     .from("organizations")
     .select("id, name, code")
@@ -19,27 +54,30 @@ export async function getMyOrganization(orgId) {
   return data;
 }
 
-export async function getOrgMembers(orgId) {
+export async function getOrgMembers(orgId: string): Promise<AdminOrgMember[]> {
   const { data, error } = await supabase
     .from("profiles")
     .select("id, full_name, avatar_url, role, created_at")
     .eq("organization_id", orgId)
     .order("created_at", { ascending: true });
   if (error) return [];
-  return data ?? [];
+  return (data ?? []) as AdminOrgMember[];
 }
 
-export async function getPendingMembers(orgId) {
+export async function getPendingMembers(orgId: string): Promise<PendingMember[]> {
   const { data, error } = await supabase
     .from("member_requests")
     .select("id, user_id, full_name, created_at")
     .eq("organization_id", orgId)
     .order("created_at", { ascending: true });
   if (error) return [];
-  return data ?? [];
+  return (data ?? []) as PendingMember[];
 }
 
-export async function acceptMember(requestId, role) {
+export async function acceptMember(
+  requestId: string,
+  role: "tenant_user" | "tenant_admin",
+): Promise<void> {
   const { data: req, error: reqErr } = await supabase
     .from("member_requests")
     .select("user_id, organization_id, full_name")
@@ -69,14 +107,14 @@ export async function acceptMember(requestId, role) {
   });
 }
 
-export async function rejectMember(userId) {
+export async function rejectMember(userId: string): Promise<void> {
   const { error } = await supabase.functions.invoke("reject-member", {
     body: { user_id: userId },
   });
   if (error) throw error;
 }
 
-export async function promoteToAdmin(memberId) {
+export async function promoteToAdmin(memberId: string): Promise<void> {
   const { error } = await supabase
     .from("profiles")
     .update({ role: "tenant_admin" })
@@ -84,21 +122,25 @@ export async function promoteToAdmin(memberId) {
   if (error) throw error;
 }
 
-export async function removeMember(memberId) {
+export async function removeMember(memberId: string): Promise<void> {
   const { error } = await supabase.from("profiles").delete().eq("id", memberId);
   if (error) throw error;
 }
 
-export async function createOrganization(data) {
+export async function createOrganization(
+  data: CreateOrganizationData,
+): Promise<CreateOrganizationResult> {
   const { data: result, error: fnError } = await supabase.functions.invoke(
     "create-organization",
     { body: data },
   );
 
-  if (fnError || !result?.orgCode) {
+  const response = result as CreateOrganizationResponse | null;
+
+  if (fnError || !response?.orgCode) {
     return {
       orgCode: null,
-      error: result?.error ?? fnError?.message ?? "Erro ao criar organização",
+      error: response?.error ?? fnError?.message ?? "Erro ao criar organização",
     };
   }
 
@@ -111,5 +153,5 @@ export async function createOrganization(data) {
     };
   }
 
-  return { orgCode: result.orgCode, error: null };
+  return { orgCode: response.orgCode, error: null };
 }

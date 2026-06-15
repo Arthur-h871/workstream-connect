@@ -1,4 +1,6 @@
 import { supabase } from "backend/api/supabase";
+import { updatePersonalTask } from "backend/api/services/tarefas.service";
+import { updateOrgTask } from "backend/api/services/org-tasks.service";
 
 export type LinkedTask = {
   link_id: string;
@@ -140,9 +142,17 @@ export async function updateLinkedTaskStatus(
   linkId: string,
   type: "personal" | "org",
   status: "started" | "concluded",
+  taskId: string,
 ): Promise<void> {
   const table = type === "personal" ? "apontamento_personal_tasks" : "apontamento_org_tasks";
   await supabase.from(table).update({ status }).eq("id", linkId);
+
+  const taskStatus = status === "concluded" ? "completed" : "in_progress";
+  if (type === "personal") {
+    await updatePersonalTask(taskId, { status: taskStatus });
+  } else {
+    await updateOrgTask(taskId, { status: taskStatus });
+  }
 }
 
 export async function unlinkTask(linkId: string, type: "personal" | "org"): Promise<void> {

@@ -9,39 +9,29 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as TarefasOrgRouteImport } from './routes/tarefas-org'
-import { Route as TarefasRouteImport } from './routes/tarefas'
-import { Route as PerfilRouteImport } from './routes/perfil'
 import { Route as LoginRouteImport } from './routes/login'
-import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as CadastroOrganizacaoRouteImport } from './routes/cadastro-organizacao'
 import { Route as CadastroRouteImport } from './routes/cadastro'
-import { Route as ApontamentosRouteImport } from './routes/apontamentos'
+import { Route as AguardandoRouteImport } from './routes/aguardando'
+import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AdminMembrosRouteImport } from './routes/admin.membros'
+import { Route as AuthenticatedTarefasOrgRouteImport } from './routes/_authenticated.tarefas-org'
+import { Route as AuthenticatedTarefasRouteImport } from './routes/_authenticated.tarefas'
+import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated.perfil'
+import { Route as AuthenticatedNotasRouteImport } from './routes/_authenticated.notas'
+import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated.dashboard'
+import { Route as AuthenticatedApontamentosRouteImport } from './routes/_authenticated.apontamentos'
+import { Route as AuthenticatedTarefasOrgProjectIdRouteImport } from './routes/_authenticated.tarefas-org_.$projectId'
+import { Route as AuthenticatedAdminMembrosRouteImport } from './routes/_authenticated.admin.membros'
 
-const TarefasOrgRoute = TarefasOrgRouteImport.update({
-  id: '/tarefas-org',
-  path: '/tarefas-org',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TarefasRoute = TarefasRouteImport.update({
-  id: '/tarefas',
-  path: '/tarefas',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PerfilRoute = PerfilRouteImport.update({
-  id: '/perfil',
-  path: '/perfil',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DashboardRoute = DashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
+const CadastroOrganizacaoRoute = CadastroOrganizacaoRouteImport.update({
+  id: '/cadastro-organizacao',
+  path: '/cadastro-organizacao',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CadastroRoute = CadastroRouteImport.update({
@@ -49,9 +39,13 @@ const CadastroRoute = CadastroRouteImport.update({
   path: '/cadastro',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApontamentosRoute = ApontamentosRouteImport.update({
-  id: '/apontamentos',
-  path: '/apontamentos',
+const AguardandoRoute = AguardandoRouteImport.update({
+  id: '/aguardando',
+  path: '/aguardando',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRoute = AuthenticatedRouteImport.update({
+  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -59,117 +53,157 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AdminMembrosRoute = AdminMembrosRouteImport.update({
-  id: '/admin/membros',
-  path: '/admin/membros',
-  getParentRoute: () => rootRouteImport,
+const AuthenticatedTarefasOrgRoute = AuthenticatedTarefasOrgRouteImport.update({
+  id: '/tarefas-org',
+  path: '/tarefas-org',
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedTarefasRoute = AuthenticatedTarefasRouteImport.update({
+  id: '/tarefas',
+  path: '/tarefas',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedPerfilRoute = AuthenticatedPerfilRouteImport.update({
+  id: '/perfil',
+  path: '/perfil',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedNotasRoute = AuthenticatedNotasRouteImport.update({
+  id: '/notas',
+  path: '/notas',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedApontamentosRoute =
+  AuthenticatedApontamentosRouteImport.update({
+    id: '/apontamentos',
+    path: '/apontamentos',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedTarefasOrgProjectIdRoute =
+  AuthenticatedTarefasOrgProjectIdRouteImport.update({
+    id: '/tarefas-org_/$projectId',
+    path: '/tarefas-org/$projectId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAdminMembrosRoute =
+  AuthenticatedAdminMembrosRouteImport.update({
+    id: '/admin/membros',
+    path: '/admin/membros',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/apontamentos': typeof ApontamentosRoute
+  '/aguardando': typeof AguardandoRoute
   '/cadastro': typeof CadastroRoute
-  '/dashboard': typeof DashboardRoute
+  '/cadastro-organizacao': typeof CadastroOrganizacaoRoute
   '/login': typeof LoginRoute
-  '/perfil': typeof PerfilRoute
-  '/tarefas': typeof TarefasRoute
-  '/tarefas-org': typeof TarefasOrgRoute
-  '/admin/membros': typeof AdminMembrosRoute
+  '/apontamentos': typeof AuthenticatedApontamentosRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/notas': typeof AuthenticatedNotasRoute
+  '/perfil': typeof AuthenticatedPerfilRoute
+  '/tarefas': typeof AuthenticatedTarefasRoute
+  '/tarefas-org': typeof AuthenticatedTarefasOrgRoute
+  '/admin/membros': typeof AuthenticatedAdminMembrosRoute
+  '/tarefas-org/$projectId': typeof AuthenticatedTarefasOrgProjectIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/apontamentos': typeof ApontamentosRoute
+  '/aguardando': typeof AguardandoRoute
   '/cadastro': typeof CadastroRoute
-  '/dashboard': typeof DashboardRoute
+  '/cadastro-organizacao': typeof CadastroOrganizacaoRoute
   '/login': typeof LoginRoute
-  '/perfil': typeof PerfilRoute
-  '/tarefas': typeof TarefasRoute
-  '/tarefas-org': typeof TarefasOrgRoute
-  '/admin/membros': typeof AdminMembrosRoute
+  '/apontamentos': typeof AuthenticatedApontamentosRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/notas': typeof AuthenticatedNotasRoute
+  '/perfil': typeof AuthenticatedPerfilRoute
+  '/tarefas': typeof AuthenticatedTarefasRoute
+  '/tarefas-org': typeof AuthenticatedTarefasOrgRoute
+  '/admin/membros': typeof AuthenticatedAdminMembrosRoute
+  '/tarefas-org/$projectId': typeof AuthenticatedTarefasOrgProjectIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/apontamentos': typeof ApontamentosRoute
+  '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/aguardando': typeof AguardandoRoute
   '/cadastro': typeof CadastroRoute
-  '/dashboard': typeof DashboardRoute
+  '/cadastro-organizacao': typeof CadastroOrganizacaoRoute
   '/login': typeof LoginRoute
-  '/perfil': typeof PerfilRoute
-  '/tarefas': typeof TarefasRoute
-  '/tarefas-org': typeof TarefasOrgRoute
-  '/admin/membros': typeof AdminMembrosRoute
+  '/_authenticated/apontamentos': typeof AuthenticatedApontamentosRoute
+  '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/notas': typeof AuthenticatedNotasRoute
+  '/_authenticated/perfil': typeof AuthenticatedPerfilRoute
+  '/_authenticated/tarefas': typeof AuthenticatedTarefasRoute
+  '/_authenticated/tarefas-org': typeof AuthenticatedTarefasOrgRoute
+  '/_authenticated/admin/membros': typeof AuthenticatedAdminMembrosRoute
+  '/_authenticated/tarefas-org_/$projectId': typeof AuthenticatedTarefasOrgProjectIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/apontamentos'
+    | '/aguardando'
     | '/cadastro'
-    | '/dashboard'
+    | '/cadastro-organizacao'
     | '/login'
+    | '/apontamentos'
+    | '/dashboard'
+    | '/notas'
     | '/perfil'
     | '/tarefas'
     | '/tarefas-org'
     | '/admin/membros'
+    | '/tarefas-org/$projectId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/apontamentos'
+    | '/aguardando'
     | '/cadastro'
-    | '/dashboard'
+    | '/cadastro-organizacao'
     | '/login'
+    | '/apontamentos'
+    | '/dashboard'
+    | '/notas'
     | '/perfil'
     | '/tarefas'
     | '/tarefas-org'
     | '/admin/membros'
+    | '/tarefas-org/$projectId'
   id:
     | '__root__'
     | '/'
-    | '/apontamentos'
+    | '/_authenticated'
+    | '/aguardando'
     | '/cadastro'
-    | '/dashboard'
+    | '/cadastro-organizacao'
     | '/login'
-    | '/perfil'
-    | '/tarefas'
-    | '/tarefas-org'
-    | '/admin/membros'
+    | '/_authenticated/apontamentos'
+    | '/_authenticated/dashboard'
+    | '/_authenticated/notas'
+    | '/_authenticated/perfil'
+    | '/_authenticated/tarefas'
+    | '/_authenticated/tarefas-org'
+    | '/_authenticated/admin/membros'
+    | '/_authenticated/tarefas-org_/$projectId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ApontamentosRoute: typeof ApontamentosRoute
+  AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  AguardandoRoute: typeof AguardandoRoute
   CadastroRoute: typeof CadastroRoute
-  DashboardRoute: typeof DashboardRoute
+  CadastroOrganizacaoRoute: typeof CadastroOrganizacaoRoute
   LoginRoute: typeof LoginRoute
-  PerfilRoute: typeof PerfilRoute
-  TarefasRoute: typeof TarefasRoute
-  TarefasOrgRoute: typeof TarefasOrgRoute
-  AdminMembrosRoute: typeof AdminMembrosRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/tarefas-org': {
-      id: '/tarefas-org'
-      path: '/tarefas-org'
-      fullPath: '/tarefas-org'
-      preLoaderRoute: typeof TarefasOrgRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/tarefas': {
-      id: '/tarefas'
-      path: '/tarefas'
-      fullPath: '/tarefas'
-      preLoaderRoute: typeof TarefasRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/perfil': {
-      id: '/perfil'
-      path: '/perfil'
-      fullPath: '/perfil'
-      preLoaderRoute: typeof PerfilRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -177,11 +211,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
+    '/cadastro-organizacao': {
+      id: '/cadastro-organizacao'
+      path: '/cadastro-organizacao'
+      fullPath: '/cadastro-organizacao'
+      preLoaderRoute: typeof CadastroOrganizacaoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cadastro': {
@@ -191,11 +225,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CadastroRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/apontamentos': {
-      id: '/apontamentos'
-      path: '/apontamentos'
-      fullPath: '/apontamentos'
-      preLoaderRoute: typeof ApontamentosRouteImport
+    '/aguardando': {
+      id: '/aguardando'
+      path: '/aguardando'
+      fullPath: '/aguardando'
+      preLoaderRoute: typeof AguardandoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -205,27 +246,109 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/membros': {
-      id: '/admin/membros'
+    '/_authenticated/tarefas-org': {
+      id: '/_authenticated/tarefas-org'
+      path: '/tarefas-org'
+      fullPath: '/tarefas-org'
+      preLoaderRoute: typeof AuthenticatedTarefasOrgRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/tarefas': {
+      id: '/_authenticated/tarefas'
+      path: '/tarefas'
+      fullPath: '/tarefas'
+      preLoaderRoute: typeof AuthenticatedTarefasRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/perfil': {
+      id: '/_authenticated/perfil'
+      path: '/perfil'
+      fullPath: '/perfil'
+      preLoaderRoute: typeof AuthenticatedPerfilRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/notas': {
+      id: '/_authenticated/notas'
+      path: '/notas'
+      fullPath: '/notas'
+      preLoaderRoute: typeof AuthenticatedNotasRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/dashboard': {
+      id: '/_authenticated/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/apontamentos': {
+      id: '/_authenticated/apontamentos'
+      path: '/apontamentos'
+      fullPath: '/apontamentos'
+      preLoaderRoute: typeof AuthenticatedApontamentosRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/tarefas-org_/$projectId': {
+      id: '/_authenticated/tarefas-org_/$projectId'
+      path: '/tarefas-org/$projectId'
+      fullPath: '/tarefas-org/$projectId'
+      preLoaderRoute: typeof AuthenticatedTarefasOrgProjectIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/membros': {
+      id: '/_authenticated/admin/membros'
       path: '/admin/membros'
       fullPath: '/admin/membros'
-      preLoaderRoute: typeof AdminMembrosRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedAdminMembrosRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
   }
 }
 
+interface AuthenticatedRouteChildren {
+  AuthenticatedApontamentosRoute: typeof AuthenticatedApontamentosRoute
+  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedNotasRoute: typeof AuthenticatedNotasRoute
+  AuthenticatedPerfilRoute: typeof AuthenticatedPerfilRoute
+  AuthenticatedTarefasRoute: typeof AuthenticatedTarefasRoute
+  AuthenticatedTarefasOrgRoute: typeof AuthenticatedTarefasOrgRoute
+  AuthenticatedAdminMembrosRoute: typeof AuthenticatedAdminMembrosRoute
+  AuthenticatedTarefasOrgProjectIdRoute: typeof AuthenticatedTarefasOrgProjectIdRoute
+}
+
+const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedApontamentosRoute: AuthenticatedApontamentosRoute,
+  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedNotasRoute: AuthenticatedNotasRoute,
+  AuthenticatedPerfilRoute: AuthenticatedPerfilRoute,
+  AuthenticatedTarefasRoute: AuthenticatedTarefasRoute,
+  AuthenticatedTarefasOrgRoute: AuthenticatedTarefasOrgRoute,
+  AuthenticatedAdminMembrosRoute: AuthenticatedAdminMembrosRoute,
+  AuthenticatedTarefasOrgProjectIdRoute: AuthenticatedTarefasOrgProjectIdRoute,
+}
+
+const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
+  AuthenticatedRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ApontamentosRoute: ApontamentosRoute,
+  AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  AguardandoRoute: AguardandoRoute,
   CadastroRoute: CadastroRoute,
-  DashboardRoute: DashboardRoute,
+  CadastroOrganizacaoRoute: CadastroOrganizacaoRoute,
   LoginRoute: LoginRoute,
-  PerfilRoute: PerfilRoute,
-  TarefasRoute: TarefasRoute,
-  TarefasOrgRoute: TarefasOrgRoute,
-  AdminMembrosRoute: AdminMembrosRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

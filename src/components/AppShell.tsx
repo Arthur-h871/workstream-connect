@@ -9,6 +9,7 @@ import {
   FileText,
   FolderKanban,
   CheckSquare,
+  StickyNote,
   User,
   Bell,
   Shield,
@@ -30,6 +31,7 @@ type NavItem = { to: string; label: string; icon: LucideIcon; admin?: boolean };
 const navItems: NavItem[] = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/apontamentos", label: "Apontamentos", icon: FileText },
+  { to: "/notas", label: "Notas", icon: StickyNote },
   { to: "/tarefas-org", label: "Tarefas da Org", icon: FolderKanban },
   { to: "/tarefas", label: "Minhas Tarefas", icon: CheckSquare },
   { to: "/perfil", label: "Perfil", icon: User },
@@ -205,7 +207,7 @@ function SidebarUser({ onLogout }: { onLogout: () => void }) {
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{profile.full_name}</p>
+          <p className="truncate text-sm font-medium">{profile.full_name.trim().split(/\s+/)[0]}</p>
           <p className="truncate text-xs text-muted-foreground">{roleLabel}</p>
         </div>
       </Link>
@@ -246,7 +248,7 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
 
         <nav className="flex-1 space-y-0.5 px-3 py-2">
           {visibleNav.map((item) => {
-            const active = location.startsWith(item.to);
+            const active = location === item.to || location.startsWith(item.to + "/");
             const Icon = item.icon;
             return (
               <Link

@@ -208,7 +208,7 @@ function ApontamentoDetail({
         t.link_id === task.link_id ? { ...t, status: newStatus } : t,
       ),
     });
-    await updateLinkedTaskStatus(task.link_id, task.type, newStatus);
+    await updateLinkedTaskStatus(task.link_id, task.type, newStatus, task.task_id);
   }
 
   async function handleUnlink(task: LinkedTask) {

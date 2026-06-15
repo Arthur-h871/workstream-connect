@@ -2,6 +2,8 @@ import { createFileRoute, redirect, Outlet } from "@tanstack/react-router";
 import { createContext, useContext } from "react";
 import { getSession } from "backend/api/services/auth.service";
 import { getProfile, type UserProfile } from "backend/api/services/users.service";
+import { NotePopupProvider } from "@/contexts/NotePopupContext";
+import { FloatingNotePopup } from "@/components/FloatingNotePopup";
 
 const ProfileContext = createContext<UserProfile | null>(null);
 export const useProfile = () => useContext(ProfileContext);
@@ -23,7 +25,10 @@ function AuthenticatedLayout() {
   const { profile } = Route.useRouteContext();
   return (
     <ProfileContext.Provider value={profile}>
-      <Outlet />
+      <NotePopupProvider>
+        <Outlet />
+        <FloatingNotePopup />
+      </NotePopupProvider>
     </ProfileContext.Provider>
   );
 }
