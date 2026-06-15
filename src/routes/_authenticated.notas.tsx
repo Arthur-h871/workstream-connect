@@ -43,7 +43,7 @@ export const Route = createFileRoute("/_authenticated/notas")({
 
 const nodeTypes = { text: TextNoteNode, task_ref: TaskRefNode, todo: TodoListNode }
 
-export function NotasPage() {
+function NotasPage() {
   return (
     <ReactFlowProvider>
       <InnerCanvas />
@@ -62,7 +62,6 @@ function InnerCanvas() {
   const [isDrawingMode, setIsDrawingMode] = useState(false)
   const [drawColor, setDrawColor] = useState("#1a1a1a")
   const [drawWidth, setDrawWidth] = useState(2)
-
   const handleDeleteNode = useCallback(
     async (nodeId: string) => {
       setNodes((prev) => prev.filter((n) => n.id !== nodeId))
@@ -73,7 +72,8 @@ function InnerCanvas() {
 
   const handleUpdateNode = useCallback(async (nodeId: string, text: string) => {
     await updateBlock(nodeId, { content: { text } }).catch(console.error)
-  }, [])
+    setNodes((prev) => prev.map((n) => n.id === nodeId ? { ...n, data: { ...n.data, label: text } } : n))
+  }, [setNodes])
 
   const handleStatusChange = useCallback(
     async (
@@ -95,7 +95,8 @@ function InnerCanvas() {
 
   const handleItemsChange = useCallback(async (blockId: string, items: TodoItem[]) => {
     await updateBlock(blockId, { content: { items } }).catch(console.error)
-  }, [])
+    setNodes((prev) => prev.map((n) => n.id === blockId ? { ...n, data: { ...n.data, items } } : n))
+  }, [setNodes])
 
   const handleTodoTaskStatus = useCallback(
     (taskId: string, taskType: "personal" | "org", status: "queued" | "in_progress" | "completed") => {
@@ -103,6 +104,33 @@ function InnerCanvas() {
     },
     [],
   )
+
+  const handleOpenPopup = useCallback((id: string) => {
+    window.open(
+      `/popup/${id}`,
+      `note-popup-${id}`,
+      "width=540,height=480,resizable=yes,scrollbars=yes,toolbar=no,menubar=no,location=no,status=no",
+    )
+  }, [])
+
+  useEffect(() => {
+    const channel = new BroadcastChannel("note-popups")
+    channel.onmessage = (ev: MessageEvent) => {
+      const msg = ev.data as
+        | { blockId: string; type: "text"; text: string }
+        | { blockId: string; type: "todo"; items: TodoItem[] }
+      if (msg.type === "text") {
+        setNodes((prev) =>
+          prev.map((n) => (n.id === msg.blockId ? { ...n, data: { ...n.data, label: msg.text } } : n)),
+        )
+      } else if (msg.type === "todo") {
+        setNodes((prev) =>
+          prev.map((n) => (n.id === msg.blockId ? { ...n, data: { ...n.data, items: msg.items } } : n)),
+        )
+      }
+    }
+    return () => channel.close()
+  }, [setNodes])
 
   const toNode = useCallback(
     (block: NoteBlock): Node => {
@@ -118,6 +146,7 @@ function InnerCanvas() {
             onDelete: handleDeleteNode,
             onItemsChange: handleItemsChange,
             onTaskStatusChange: handleTodoTaskStatus,
+            onOpenPopup: handleOpenPopup,
           },
           style: { width: block.width, height: block.height },
         }
@@ -135,6 +164,7 @@ function InnerCanvas() {
             status: (c.status as TaskStatus) ?? "queued",
             onDelete: handleDeleteNode,
             onStatusChange: handleStatusChange,
+            onOpenPopup: handleOpenPopup,
           },
           style: { width: block.width, height: block.height },
         }
@@ -147,34 +177,40 @@ function InnerCanvas() {
           label: ((block.content as Record<string, unknown>)?.text as string) ?? "",
           onDelete: handleDeleteNode,
           onUpdate: handleUpdateNode,
+          onOpenPopup: handleOpenPopup,
         },
         style: { width: block.width, height: block.height },
       }
     },
-    [handleDeleteNode, handleUpdateNode, handleStatusChange, handleItemsChange, handleTodoTaskStatus],
+    [handleDeleteNode, handleUpdateNode, handleStatusChange, handleItemsChange, handleTodoTaskStatus, handleOpenPopup],
   )
 
   useEffect(() => {
     async function load() {
       setLoading(true)
-      const c = await getOrCreateCanvas(profile.id)
-      setCanvas(c)
-      const [blocks, connections, drawingData] = await Promise.all([
-        getBlocks(c.id),
-        getConnections(c.id),
-        getDrawings(c.id),
-      ])
-      setNodes(blocks.map(toNode))
-      setEdges(connections.map(conn => ({
-        id: conn.id,
-        source: conn.source_block_id,
-        target: conn.target_block_id,
-        type: "smoothstep",
-        style: { stroke: "var(--copper)", strokeWidth: 2 },
-        animated: false,
-      })))
-      setDrawings(drawingData.map(d => ({ id: d.id, pathData: d.path_data, color: d.color, strokeWidth: d.stroke_width })))
-      setLoading(false)
+      try {
+        const c = await getOrCreateCanvas(profile.id)
+        setCanvas(c)
+        const [blocks, connections, drawingData] = await Promise.all([
+          getBlocks(c.id),
+          getConnections(c.id),
+          getDrawings(c.id),
+        ])
+        setNodes(blocks.map(toNode))
+        setEdges(connections.map(conn => ({
+          id: conn.id,
+          source: conn.source_block_id,
+          target: conn.target_block_id,
+          type: "smoothstep",
+          style: { stroke: "var(--copper)", strokeWidth: 2 },
+          animated: false,
+        })))
+        setDrawings(drawingData.map(d => ({ id: d.id, pathData: d.path_data, color: d.color, strokeWidth: d.stroke_width })))
+      } catch (err) {
+        console.error("Failed to load canvas:", err)
+      } finally {
+        setLoading(false)
+      }
     }
     load()
     // toNode is stable (handleDeleteNode + handleUpdateNode are stable useCallbacks)
@@ -280,6 +316,7 @@ function InnerCanvas() {
           onPathDelete={handlePathDelete}
         />
       </div>
+
     </div>
   )
 }

@@ -55,18 +55,33 @@ function defaultContent(type: BlockType): Json {
 }
 
 export async function getOrCreateCanvas(userId: string): Promise<NoteCanvas> {
+  const { data: existing, error: selectError } = await supabase
+    .from("note_canvases")
+    .select()
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (selectError) throw new Error(`Failed to get canvas: ${selectError.message}`);
+  if (existing) return existing as NoteCanvas;
+
   const { data, error } = await supabase
     .from("note_canvases")
-    // ignoreDuplicates prevents bumping updated_at on every page load
-    .upsert({ user_id: userId }, { onConflict: "user_id", ignoreDuplicates: true })
+    .insert({ user_id: userId })
     .select()
     .single();
 
-  if (error || !data) {
-    throw new Error(`Failed to get or create canvas: ${error?.message ?? "no data returned"}`);
-  }
-
+  if (error || !data) throw new Error(`Failed to create canvas: ${error?.message ?? "no data returned"}`);
   return data as NoteCanvas;
+}
+
+export async function getBlock(blockId: string): Promise<NoteBlock | null> {
+  const { data, error } = await supabase
+    .from("note_blocks")
+    .select("*")
+    .eq("id", blockId)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to fetch block: ${error.message}`);
+  return data as NoteBlock | null;
 }
 
 export async function getBlocks(canvasId: string): Promise<NoteBlock[]> {

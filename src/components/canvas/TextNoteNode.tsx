@@ -1,6 +1,6 @@
 import { memo, useState, useRef, useCallback, useEffect, ChangeEvent } from "react"
 import { Handle, Position, NodeResizer, type NodeProps } from "@xyflow/react"
-import { X } from "lucide-react"
+import { X, Maximize2 } from "lucide-react"
 import { useRouteContext } from "@tanstack/react-router"
 import { searchTasksForMention } from "backend/api/services/notes.service"
 import { TaskMentionDropdown } from "@/components/canvas/TaskMentionDropdown"
@@ -9,6 +9,7 @@ export type TextNodeData = {
   label: string
   onDelete: (id: string) => void
   onUpdate: (id: string, text: string) => void
+  onOpenPopup: (id: string) => void
 }
 
 type TaskResult = { id: string; title: string; type: "personal" | "org" }
@@ -92,16 +93,24 @@ export const TextNoteNode = memo(function TextNoteNode({ id, data, selected }: N
       <NodeResizer minWidth={180} minHeight={120} isVisible={selected} />
       <Handle type="target" position={Position.Left} className="opacity-0 hover:opacity-100" />
       <Handle type="source" position={Position.Right} className="opacity-0 hover:opacity-100" />
-      <div className="nodrag nopan flex items-center justify-between border-b border-border px-3 py-1.5 cursor-grab active:cursor-grabbing">
+      <div className="flex items-center justify-between border-b border-border px-3 py-1.5 cursor-grab active:cursor-grabbing">
         <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground select-none">
           Nota
         </span>
-        <button
-          onClick={() => typedData.onDelete(id)}
-          className="nopan nodrag flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-foreground"
-        >
-          <X className="h-3 w-3" />
-        </button>
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={() => typedData.onOpenPopup(id)}
+            className="nopan nodrag flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-foreground"
+          >
+            <Maximize2 className="h-3 w-3" />
+          </button>
+          <button
+            onClick={() => typedData.onDelete(id)}
+            className="nopan nodrag flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-foreground"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </div>
       </div>
       <div className="relative flex-1">
         {text.length === 0 && (

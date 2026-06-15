@@ -1,4 +1,5 @@
 import { useRef, useState } from "react"
+import { useViewport } from "@xyflow/react"
 
 export type DrawingPath = {
   id: string
@@ -21,12 +22,16 @@ export function DrawingLayer({ drawings, isDrawing, color, strokeWidth, onPathCo
   const isPointerDown = useRef(false)
   const pathPoints = useRef<string[]>([])
   const svgRef = useRef<SVGSVGElement>(null)
+  const { x, y, zoom } = useViewport()
 
   function getSVGPoint(e: React.MouseEvent<SVGSVGElement>) {
     const svg = svgRef.current
     if (!svg) return null
     const rect = svg.getBoundingClientRect()
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top }
+    return {
+      x: (e.clientX - rect.left - x) / zoom,
+      y: (e.clientY - rect.top - y) / zoom,
+    }
   }
 
   function handleMouseDown(e: React.MouseEvent<SVGSVGElement>) {
@@ -67,29 +72,31 @@ export function DrawingLayer({ drawings, isDrawing, color, strokeWidth, onPathCo
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
-      {drawings.map(d => (
-        <path
-          key={d.id}
-          d={d.pathData}
-          stroke={d.color}
-          strokeWidth={d.strokeWidth}
-          fill="none"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className={isDrawing ? "cursor-crosshair" : "cursor-pointer hover:opacity-50"}
-          onClick={isDrawing ? undefined : () => onPathDelete(d.id)}
-        />
-      ))}
-      {currentPath && (
-        <path
-          d={currentPath}
-          stroke={color}
-          strokeWidth={strokeWidth}
-          fill="none"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      )}
+      <g transform={`translate(${x},${y}) scale(${zoom})`}>
+        {drawings.map(d => (
+          <path
+            key={d.id}
+            d={d.pathData}
+            stroke={d.color}
+            strokeWidth={d.strokeWidth}
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={isDrawing ? "cursor-crosshair" : "cursor-pointer hover:opacity-50"}
+            onClick={isDrawing ? undefined : () => onPathDelete(d.id)}
+          />
+        ))}
+        {currentPath && (
+          <path
+            d={currentPath}
+            stroke={color}
+            strokeWidth={strokeWidth}
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        )}
+      </g>
     </svg>
   )
 }

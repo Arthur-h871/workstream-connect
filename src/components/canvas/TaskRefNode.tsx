@@ -1,6 +1,6 @@
 import { memo, useState, useCallback } from "react"
 import { Handle, Position, NodeResizer, type NodeProps } from "@xyflow/react"
-import { Link, X, Circle, Clock, CheckCircle2 } from "lucide-react"
+import { Link, X, Circle, Clock, CheckCircle2, Maximize2 } from "lucide-react"
 
 export type TaskStatus = "queued" | "in_progress" | "completed"
 
@@ -17,6 +17,7 @@ export type TaskRefNodeData = {
     title: string,
     newStatus: TaskStatus,
   ) => void
+  onOpenPopup: (id: string) => void
 }
 
 const STATUS_CYCLE: Record<TaskStatus, TaskStatus> = {
@@ -61,19 +62,27 @@ export const TaskRefNode = memo(function TaskRefNode({ id, data, selected }: Nod
       <Handle type="target" position={Position.Left} className="opacity-0 hover:opacity-100" />
       <Handle type="source" position={Position.Right} className="opacity-0 hover:opacity-100" />
 
-      <div className="nodrag nopan flex items-center justify-between border-b border-border px-3 py-1.5">
+      <div className="flex items-center justify-between border-b border-border px-3 py-1.5 cursor-grab active:cursor-grabbing">
         <div className="flex items-center gap-1.5">
           <Link className="h-3 w-3 text-muted-foreground" />
           <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground select-none">
             Tarefa
           </span>
         </div>
-        <button
-          onClick={() => typedData.onDelete(id)}
-          className="nopan nodrag flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-foreground"
-        >
-          <X className="h-3 w-3" />
-        </button>
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={() => typedData.onOpenPopup(id)}
+            className="nopan nodrag flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-foreground"
+          >
+            <Maximize2 className="h-3 w-3" />
+          </button>
+          <button
+            onClick={() => typedData.onDelete(id)}
+            className="nopan nodrag flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-foreground"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col gap-2 px-3 py-3">

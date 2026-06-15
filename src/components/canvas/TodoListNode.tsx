@@ -1,6 +1,6 @@
 import { memo, useState, useRef, useEffect } from "react"
 import { Handle, Position, NodeResizer, type NodeProps } from "@xyflow/react"
-import { CheckSquare, X, Plus, Trash2 } from "lucide-react"
+import { CheckSquare, X, Plus, Trash2, Maximize2 } from "lucide-react"
 
 export type TodoItem = {
   id: string
@@ -19,6 +19,7 @@ export type TodoNodeData = {
     taskType: "personal" | "org",
     status: "queued" | "in_progress" | "completed",
   ) => void
+  onOpenPopup: (id: string) => void
 }
 
 /** Canvas node displaying a checklist. Checking an item with a linked task marks it completed. */
@@ -105,19 +106,27 @@ export const TodoListNode = memo(function TodoListNode({ id, data, selected }: N
       <Handle type="target" position={Position.Left} className="opacity-0 hover:opacity-100" />
       <Handle type="source" position={Position.Right} className="opacity-0 hover:opacity-100" />
 
-      <div className="nodrag nopan flex items-center justify-between border-b border-border px-3 py-1.5">
+      <div className="flex items-center justify-between border-b border-border px-3 py-1.5 cursor-grab active:cursor-grabbing">
         <div className="flex items-center gap-1.5">
           <CheckSquare className="h-3 w-3 text-muted-foreground" />
           <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground select-none">
             Lista
           </span>
         </div>
-        <button
-          onClick={() => typedData.onDelete(id)}
-          className="nopan nodrag flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-foreground"
-        >
-          <X className="h-3 w-3" />
-        </button>
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={() => typedData.onOpenPopup(id)}
+            className="nopan nodrag flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-foreground"
+          >
+            <Maximize2 className="h-3 w-3" />
+          </button>
+          <button
+            onClick={() => typedData.onDelete(id)}
+            className="nopan nodrag flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-foreground"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </div>
       </div>
 
       <div className="nopan nodrag flex-1 overflow-y-auto px-2 py-2">
