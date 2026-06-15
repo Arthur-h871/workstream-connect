@@ -15,7 +15,7 @@ import {
   type LinkedTask,
 } from "backend/api/services/apontamentos.service";
 import { getPersonalTasks, type PersonalTask } from "backend/api/services/tarefas.service";
-import { getMyOrgTasks, type MyOrgTask } from "backend/api/services/org-tasks.service";
+import { getMyOrgTasks, type OrgTask } from "backend/api/services/org-tasks.service";
 import {
   getScreenshots,
   softDeleteScreenshot,
@@ -356,7 +356,7 @@ function AddTaskModal({
   const [tab, setTab] = useState<"personal" | "org">("personal");
   const [query, setQuery] = useState("");
   const [personalTasks, setPersonalTasks] = useState<PersonalTask[]>([]);
-  const [orgTasks, setOrgTasks] = useState<MyOrgTask[]>([]);
+  const [orgTasks, setOrgTasks] = useState<OrgTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(new Map<string, "personal" | "org">());
   const [saving, setSaving] = useState(false);
@@ -493,7 +493,6 @@ function AddTaskModal({
                     />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm">{t.title}</p>
-                      {t.project_name && <p className="text-xs text-teal">{t.project_name}</p>}
                     </div>
                   </label>
                 </li>

@@ -6,7 +6,7 @@ import {
   getProfileStats,
   uploadAvatar,
   updateProfile,
-  type UserProfile,
+  type Profile,
 } from "backend/api/services/users.service";
 import {
   getCurrentUserEmail,
@@ -28,7 +28,7 @@ export const Route = createFileRoute("/_authenticated/perfil")({
       getCurrentUserEmail(),
     ]);
     return {
-      profile: context.profile as UserProfile,
+      profile: context.profile as Profile,
       stats,
       email,
     };
