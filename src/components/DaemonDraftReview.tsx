@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { createApontamentoFromDraft } from "backend/api/services/apontamentos.service";
 
 type DirectoryDiff = {
@@ -54,7 +54,7 @@ function castDraft(raw: unknown): DirectoryDraft {
 
 /** Review panel shown after a daemon session stops — lets the user edit and confirm apontamentos. */
 export function DaemonDraftReview({ sessionId, drafts, orgId, userId, onComplete }: Props) {
-  const typed = drafts.map(castDraft);
+  const typed = useMemo(() => drafts.map(castDraft), [drafts]);
 
   const [contents, setContents] = useState<Record<string, string>>(
     Object.fromEntries(typed.map((d) => [d.dir_id, d.draft.content])),
@@ -122,9 +122,10 @@ export function DaemonDraftReview({ sessionId, drafts, orgId, userId, onComplete
                   max="24"
                   className="w-20 rounded-md border border-border bg-background px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-copper"
                   value={hours[d.dir_id] ?? 0.25}
-                  onChange={(e) =>
-                    setHours((prev) => ({ ...prev, [d.dir_id]: parseFloat(e.target.value) }))
-                  }
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    setHours((prev) => ({ ...prev, [d.dir_id]: isNaN(val) ? 0.25 : val }));
+                  }}
                 />
               </div>
             </>
@@ -145,7 +146,8 @@ export function DaemonDraftReview({ sessionId, drafts, orgId, userId, onComplete
         </button>
         <button
           onClick={onComplete}
-          className="text-sm text-muted-foreground hover:text-foreground"
+          disabled={loading}
+          className="text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
         >
           Descartar
         </button>

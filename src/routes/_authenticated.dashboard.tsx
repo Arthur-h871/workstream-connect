@@ -211,6 +211,8 @@ function Recorder({
           const data = (await resp.json()) as { results?: unknown[] };
           const results = data.results ?? [];
           if (results.length > 0) {
+            // Set sessionId before drafts — React 18 batches both state updates
+            // ensuring stoppedSessionId is never "" when daemonDrafts.length > 0
             onStopSessionId(sessionId);
             setDaemonDrafts(results);
           } else {

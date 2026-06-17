@@ -51,10 +51,19 @@ function ApontamentosPage() {
   const selected = items.find((a) => a.id === selectedId) ?? null;
 
   async function handleCreate() {
-    const novo = await createApontamento(userId, orgId);
-    if (!novo) return;
-    setItems((prev) => [novo, ...prev]);
-    setSelectedId(novo.id);
+    try {
+      const novo = await createApontamento({
+        user_id: userId,
+        organization_id: orgId,
+        date: new Date().toISOString().split("T")[0],
+        content: "",
+        hours_worked: 0.25,
+      });
+      setItems((prev) => [novo, ...prev]);
+      setSelectedId(novo.id);
+    } catch {
+      // silently ignore — user sees no new item appear
+    }
   }
 
   function handleUpdate(id: string, fields: Partial<Apontamento>) {

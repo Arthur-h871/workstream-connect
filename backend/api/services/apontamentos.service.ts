@@ -73,18 +73,22 @@ export async function getApontamentos(userId: string): Promise<Apontamento[]> {
   return (data ?? []).map(mapRow);
 }
 
-export async function createApontamento(
-  userId: string,
-  orgId: string,
-): Promise<Apontamento | null> {
-  const { data, error } = await supabase
+export async function createApontamento(data: {
+  user_id: string;
+  organization_id: string;
+  session_id?: string | null;
+  date: string;
+  content: string;
+  hours_worked: number;
+}): Promise<Apontamento> {
+  const { data: row, error } = await supabase
     .from("apontamentos")
-    .insert({ user_id: userId, organization_id: orgId })
+    .insert(data)
     .select(SELECT)
     .single();
-
-  if (error || !data) return null;
-  return mapRow(data);
+  if (error) throw error;
+  if (!row) throw new Error("Insert returned no row — check RLS policy for apontamentos");
+  return mapRow(row);
 }
 
 /** Creates a fully-specified apontamento from daemon draft data. */
@@ -103,6 +107,7 @@ export async function createApontamentoFromDraft(fields: {
     .single();
 
   if (error) throw error;
+  if (!data) throw new Error("Insert returned no row — check RLS policy for apontamentos");
   return mapRow(data);
 }
 
