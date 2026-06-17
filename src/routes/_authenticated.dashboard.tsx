@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Play, Pause, Square, Trash2, GripVertical } from "lucide-react";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { AppShell } from "@/components/AppShell";
 import { getDashboardData, type DashboardData } from "backend/api/services/dashboard.service";
 import {
@@ -19,14 +19,19 @@ const DAEMON_URL = "http://localhost:7432";
 
 type WatchedDir = { id: string; path: string; description: string };
 
-/** Checks whether the local capture daemon is reachable on mount. */
+/** Checks whether the local capture daemon is reachable; polls every 10 s. */
 function useDaemonStatus(): boolean {
   const [online, setOnline] = useState(false);
 
   useEffect(() => {
-    fetch(`${DAEMON_URL}/status`)
-      .then((r) => r.ok && setOnline(true))
-      .catch(() => setOnline(false));
+    const probe = () =>
+      fetch(`${DAEMON_URL}/status`)
+        .then((r) => r.ok && setOnline(true))
+        .catch(() => setOnline(false));
+
+    probe();
+    const id = setInterval(probe, 10_000);
+    return () => clearInterval(id);
   }, []);
 
   return online;
@@ -127,6 +132,7 @@ function Recorder({
   const [loading, setLoading] = useState(false);
   const [showNotesModal, setShowNotesModal] = useState(false);
   const [watchedDirs, setWatchedDirs] = useState<WatchedDir[]>([]);
+  const isStoppingRef = useRef(false);
 
   const daemonOnline = useDaemonStatus();
 
@@ -194,6 +200,8 @@ function Recorder({
   /** Completes the stop after the user submits (or skips) the notes modal. */
   async function handleStopConfirm(notes: Record<string, string>) {
     if (!session) return;
+    if (isStoppingRef.current) return;
+    isStoppingRef.current = true;
     setShowNotesModal(false);
     setLoading(true);
     const sessionId = session.id;
@@ -233,6 +241,7 @@ function Recorder({
       }
     } finally {
       setLoading(false);
+      isStoppingRef.current = false;
     }
   }
 
