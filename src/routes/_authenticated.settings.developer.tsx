@@ -1,20 +1,20 @@
-import { useState, useEffect } from "react"
-import { createFileRoute } from "@tanstack/react-router"
-import { AppShell } from "@/components/AppShell"
+import { useState, useEffect } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import { AppShell } from "@/components/AppShell";
 
-const DAEMON_URL = "http://localhost:7432"
+const DAEMON_URL = "http://localhost:7432";
 
 type WatchedDir = {
-  id: string
-  path: string
-  description: string
-  snapshot_exists: boolean
-  created_at: string
-}
+  id: string;
+  path: string;
+  description: string;
+  snapshot_exists: boolean;
+  created_at: string;
+};
 
 type DaemonErrorResponse = {
-  detail?: string
-}
+  detail?: string;
+};
 
 export const Route = createFileRoute("/_authenticated/settings/developer")({
   head: () => ({
@@ -24,87 +24,97 @@ export const Route = createFileRoute("/_authenticated/settings/developer")({
     ],
   }),
   component: DeveloperSettingsPage,
-})
+});
 
 function DeveloperSettingsPage() {
-  const [dirs, setDirs] = useState<WatchedDir[]>([])
-  const [daemonOnline, setDaemonOnline] = useState(false)
-  const [newPath, setNewPath] = useState("")
-  const [newDesc, setNewDesc] = useState("")
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editDesc, setEditDesc] = useState("")
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [dirs, setDirs] = useState<WatchedDir[]>([]);
+  const [daemonOnline, setDaemonOnline] = useState(false);
+  const [newPath, setNewPath] = useState("");
+  const [newDesc, setNewDesc] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDesc, setEditDesc] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const fetchDirs = async (): Promise<void> => {
     try {
-      const resp = await fetch(`${DAEMON_URL}/directories`)
+      const resp = await fetch(`${DAEMON_URL}/directories`);
       if (!resp.ok) {
-        setDaemonOnline(false)
-        return
+        setDaemonOnline(false);
+        return;
       }
-      setDaemonOnline(true)
-      const data: WatchedDir[] = await resp.json()
-      setDirs(data)
+      setDaemonOnline(true);
+      const data: WatchedDir[] = await resp.json();
+      setDirs(data);
     } catch {
-      setDaemonOnline(false)
+      setDaemonOnline(false);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
-    fetchDirs()
-  }, [])
+    fetchDirs();
+  }, []);
 
   const addDir = async (): Promise<void> => {
-    setError(null)
+    setError(null);
     try {
       const resp = await fetch(`${DAEMON_URL}/directories`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ path: newPath, description: newDesc }),
-      })
+      });
       if (!resp.ok) {
-        const data: DaemonErrorResponse = await resp.json()
-        setError(data.detail ?? "Erro ao adicionar diretório")
-        return
+        const data: DaemonErrorResponse = await resp.json();
+        setError(data.detail ?? "Erro ao adicionar diretório");
+        return;
       }
-      setNewPath("")
-      setNewDesc("")
-      await fetchDirs()
+      setNewPath("");
+      setNewDesc("");
+      await fetchDirs();
     } catch {
-      setError("Erro ao conectar com o daemon")
+      setError("Erro ao conectar com o daemon");
     }
-  }
+  };
 
   const updateDir = async (id: string): Promise<void> => {
     try {
-      await fetch(`${DAEMON_URL}/directories/${id}`, {
+      const resp = await fetch(`${DAEMON_URL}/directories/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ description: editDesc }),
-      })
-      setEditingId(null)
-      await fetchDirs()
+      });
+      if (!resp.ok) {
+        const data = await resp.json();
+        setError((data as DaemonErrorResponse).detail ?? "Erro ao atualizar diretório");
+        return;
+      }
+      setEditingId(null);
+      await fetchDirs();
     } catch {
-      setError("Erro ao atualizar diretório")
+      setError("Erro ao atualizar diretório");
     }
-  }
+  };
 
   const removeDir = async (id: string): Promise<void> => {
     try {
-      await fetch(`${DAEMON_URL}/directories/${id}`, { method: "DELETE" })
-      await fetchDirs()
+      const resp = await fetch(`${DAEMON_URL}/directories/${id}`, { method: "DELETE" });
+      if (!resp.ok) {
+        const data = await resp.json();
+        setError((data as DaemonErrorResponse).detail ?? "Erro ao remover diretório");
+        return;
+      }
+      await fetchDirs();
     } catch {
-      setError("Erro ao remover diretório")
+      setError("Erro ao remover diretório");
     }
-  }
+  };
 
   const startEdit = (dir: WatchedDir): void => {
-    setEditingId(dir.id)
-    setEditDesc(dir.description)
-  }
+    setEditingId(dir.id);
+    setEditDesc(dir.description);
+  };
 
   return (
     <AppShell>
@@ -121,11 +131,7 @@ function DeveloperSettingsPage() {
             className={`inline-flex h-2 w-2 rounded-full ${daemonOnline ? "bg-green-500" : "bg-muted-foreground"}`}
           />
           <span className="text-xs text-muted-foreground">
-            {loading
-              ? "Verificando daemon..."
-              : daemonOnline
-                ? "Daemon online"
-                : "Daemon offline"}
+            {loading ? "Verificando daemon..." : daemonOnline ? "Daemon online" : "Daemon offline"}
           </span>
         </div>
 
@@ -198,9 +204,7 @@ function DeveloperSettingsPage() {
                     </div>
                   </div>
                   {d.snapshot_exists && (
-                    <p className="mt-2 text-[11px] text-muted-foreground/60">
-                      Snapshot disponível
-                    </p>
+                    <p className="mt-2 text-[11px] text-muted-foreground/60">Snapshot disponível</p>
                   )}
                 </div>
               ))}
@@ -246,5 +250,5 @@ function DeveloperSettingsPage() {
         )}
       </div>
     </AppShell>
-  )
+  );
 }

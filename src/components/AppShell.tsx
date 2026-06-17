@@ -1,9 +1,4 @@
-import {
-  Link,
-  useRouterState,
-  useNavigate,
-  useRouteContext,
-} from "@tanstack/react-router";
+import { Link, useRouterState, useNavigate, useRouteContext } from "@tanstack/react-router";
 import {
   LayoutDashboard,
   FileText,
@@ -37,6 +32,7 @@ const navItems: NavItem[] = [
   { to: "/tarefas", label: "Minhas Tarefas", icon: CheckSquare },
   { to: "/perfil", label: "Perfil", icon: User },
   { to: "/admin/membros", label: "Membros", icon: Shield, admin: true },
+  // Visible to all users; shows "daemon offline" instructions if daemon is not running
   { to: "/settings/developer", label: "Dev", icon: Terminal },
 ];
 
@@ -77,18 +73,14 @@ function NotificationBell() {
 
   async function handleMarkRead(id: string) {
     setNotifications((prev) =>
-      prev.map((n) =>
-        n.id === id ? { ...n, read_at: new Date().toISOString() } : n,
-      ),
+      prev.map((n) => (n.id === id ? { ...n, read_at: new Date().toISOString() } : n)),
     );
     await markAsRead(id);
   }
 
   async function handleMarkAllRead() {
     const now = new Date().toISOString();
-    setNotifications((prev) =>
-      prev.map((n) => ({ ...n, read_at: n.read_at ?? now })),
-    );
+    setNotifications((prev) => prev.map((n) => ({ ...n, read_at: n.read_at ?? now })));
     await markAllAsRead(userId);
   }
 
@@ -112,10 +104,7 @@ function NotificationBell() {
             <div className="flex items-center justify-between border-b border-border px-3 py-2">
               <p className="section-label">Notificações</p>
               {unreadCount > 0 && (
-                <button
-                  onClick={handleMarkAllRead}
-                  className="text-xs text-teal hover:underline"
-                >
+                <button onClick={handleMarkAllRead} className="text-xs text-teal hover:underline">
                   Marcar todas como lidas
                 </button>
               )}
@@ -150,16 +139,12 @@ function NotificationBell() {
                       <div className="min-w-0 flex-1">
                         <p
                           className={`text-xs leading-snug ${
-                            !n.read_at
-                              ? "font-semibold text-foreground"
-                              : "text-muted-foreground"
+                            !n.read_at ? "font-semibold text-foreground" : "text-muted-foreground"
                           }`}
                         >
                           {n.title}
                         </p>
-                        <p className="mt-0.5 text-[11px] text-muted-foreground">
-                          {n.body}
-                        </p>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">{n.body}</p>
                         <p className="mt-1 text-[10px] text-muted-foreground/60">
                           {formatTimeAgo(n.created_at)}
                         </p>
@@ -187,9 +172,7 @@ function SidebarUser({ onLogout }: { onLogout: () => void }) {
     .join("");
 
   const roleLabel =
-    profile.role === "tenant_admin" || profile.role === "master"
-      ? "Admin"
-      : "Membro";
+    profile.role === "tenant_admin" || profile.role === "master" ? "Admin" : "Membro";
 
   return (
     <div className="flex items-center gap-1">
@@ -229,9 +212,7 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
   const navigate = useNavigate();
   const { profile } = useRouteContext({ from: "/_authenticated" });
 
-  const visibleNav = navItems.filter(
-    (item) => !item.admin || profile.role !== "tenant_user",
-  );
+  const visibleNav = navItems.filter((item) => !item.admin || profile.role !== "tenant_user");
 
   async function handleLogout() {
     await signOut();
