@@ -14,6 +14,7 @@ import {
   Bell,
   Shield,
   LogOut,
+  Terminal,
   type LucideIcon,
 } from "lucide-react";
 import { useState, useEffect, type ReactNode } from "react";
@@ -36,6 +37,7 @@ const navItems: NavItem[] = [
   { to: "/tarefas", label: "Minhas Tarefas", icon: CheckSquare },
   { to: "/perfil", label: "Perfil", icon: User },
   { to: "/admin/membros", label: "Membros", icon: Shield, admin: true },
+  { to: "/settings/developer", label: "Dev", icon: Terminal },
 ];
 
 function formatTimeAgo(isoStr: string): string {
