@@ -13,6 +13,7 @@ import {
   triggerGenerateReport,
   type CaptureSession,
 } from "backend/api/services/sessions.service";
+import { DaemonDraftReview } from "@/components/DaemonDraftReview";
 
 const DAEMON_URL = "http://localhost:7432";
 
@@ -116,8 +117,10 @@ function NotesModal({
 
 function Recorder({
   setDaemonDrafts,
+  onStopSessionId,
 }: {
   setDaemonDrafts: React.Dispatch<React.SetStateAction<unknown[]>>;
+  onStopSessionId: (sessionId: string) => void;
 }) {
   const { session: initialSession, userId, orgId } = Route.useLoaderData();
   const [session, setSession] = useState<CaptureSession | null>(initialSession);
@@ -206,7 +209,15 @@ function Recorder({
             body: JSON.stringify({ session_id: sessionId, dir_notes: notes }),
           });
           const data = (await resp.json()) as { results?: unknown[] };
-          setDaemonDrafts(data.results ?? []);
+          const results = data.results ?? [];
+          if (results.length > 0) {
+            onStopSessionId(sessionId);
+            setDaemonDrafts(results);
+          } else {
+            triggerGenerateReport(sessionId).catch((e: unknown) => {
+              console.error("Erro ao gerar relatório:", e);
+            });
+          }
         } catch {
           // daemon unavailable — fall through to screenshot-based generation
           triggerGenerateReport(sessionId).catch((e: unknown) => {
@@ -345,9 +356,10 @@ function Heatmap({ activeDays, streak }: { activeDays: string[]; streak: number 
 }
 
 function Dashboard() {
-  const { data, fullName } = Route.useLoaderData();
+  const { data, fullName, userId, orgId } = Route.useLoaderData();
   const firstName = fullName.split(" ")[0];
   const [daemonDrafts, setDaemonDrafts] = useState<unknown[]>([]);
+  const [stoppedSessionId, setStoppedSessionId] = useState<string>("");
 
   const now = new Date();
   const hour = now.getHours();
@@ -371,10 +383,16 @@ function Dashboard() {
           <h1 className="text-2xl font-semibold tracking-tight">{greeting}</h1>
           <p className="mt-1 text-sm text-muted-foreground capitalize">{dateLabel}</p>
         </div>
-        <Recorder setDaemonDrafts={setDaemonDrafts} />
+        <Recorder setDaemonDrafts={setDaemonDrafts} onStopSessionId={setStoppedSessionId} />
       </div>
       {daemonDrafts.length > 0 && (
-        <div data-testid="drafts-ready" data-count={daemonDrafts.length} />
+        <DaemonDraftReview
+          sessionId={stoppedSessionId}
+          drafts={daemonDrafts}
+          orgId={orgId}
+          userId={userId}
+          onComplete={() => setDaemonDrafts([])}
+        />
       )}
 
       <div className="grid grid-cols-12 gap-6">

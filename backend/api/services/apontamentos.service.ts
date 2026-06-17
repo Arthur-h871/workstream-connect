@@ -87,6 +87,25 @@ export async function createApontamento(
   return mapRow(data);
 }
 
+/** Creates a fully-specified apontamento from daemon draft data. */
+export async function createApontamentoFromDraft(fields: {
+  user_id: string;
+  organization_id: string;
+  session_id: string | null;
+  date: string;
+  content: string;
+  hours_worked: number;
+}): Promise<Apontamento> {
+  const { data, error } = await supabase
+    .from("apontamentos")
+    .insert(fields)
+    .select(SELECT)
+    .single();
+
+  if (error) throw error;
+  return mapRow(data);
+}
+
 export async function updateApontamento(
   id: string,
   fields: Partial<Pick<Apontamento, "content" | "hours_worked" | "date">>,
