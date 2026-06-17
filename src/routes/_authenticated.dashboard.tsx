@@ -1,11 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Play, Pause, Square, Trash2, GripVertical } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppShell } from "@/components/AppShell";
-import {
-  getDashboardData,
-  type DashboardData,
-} from "backend/api/services/dashboard.service";
+import { getDashboardData, type DashboardData } from "backend/api/services/dashboard.service";
 import {
   getActiveSession,
   createSession,
@@ -16,6 +13,23 @@ import {
   triggerGenerateReport,
   type CaptureSession,
 } from "backend/api/services/sessions.service";
+
+const DAEMON_URL = "http://localhost:7432";
+
+type WatchedDir = { id: string; path: string; description: string };
+
+/** Checks whether the local capture daemon is reachable on mount. */
+function useDaemonStatus(): boolean {
+  const [online, setOnline] = useState(false);
+
+  useEffect(() => {
+    fetch(`${DAEMON_URL}/status`)
+      .then((r) => r.ok && setOnline(true))
+      .catch(() => setOnline(false));
+  }, []);
+
+  return online;
+}
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
@@ -29,10 +43,7 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   }),
   loader: async ({ context }) => {
     const { id: userId, organization_id: orgId } = context.profile;
-    const [session, data] = await Promise.all([
-      getActiveSession(userId),
-      getDashboardData(userId),
-    ]);
+    const [session, data] = await Promise.all([getActiveSession(userId), getDashboardData(userId)]);
     return { session, data, fullName: context.profile.full_name, userId, orgId };
   },
   component: () => (
@@ -42,10 +53,76 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   ),
 });
 
+function NotesModal({
+  dirs,
+  onConfirm,
+  onCancel,
+}: {
+  dirs: WatchedDir[];
+  onConfirm: (notes: Record<string, string>) => void;
+  onCancel: () => void;
+}) {
+  const [notes, setNotes] = useState<Record<string, string>>({});
+
+  function handleChange(id: string, value: string) {
+    setNotes((prev) => ({ ...prev, [id]: value }));
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="w-full max-w-lg rounded-xl border border-border bg-surface p-6 shadow-xl">
+        <h2 className="mb-1 text-base font-semibold">Notas de encerramento</h2>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Adicione notas opcionais para cada diretório monitorado antes de finalizar a sessão.
+        </p>
+        {dirs.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhum diretório monitorado encontrado.</p>
+        ) : (
+          <div className="space-y-4">
+            {dirs.map((dir) => (
+              <div key={dir.id}>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                  {dir.description || dir.path}
+                  <span className="ml-1 font-mono text-[10px] opacity-60">{dir.path}</span>
+                </label>
+                <textarea
+                  rows={2}
+                  value={notes[dir.id] ?? ""}
+                  onChange={(e) => handleChange(dir.id, e.target.value)}
+                  className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm text-muted-foreground focus:outline-none focus:ring-1 focus:ring-copper"
+                />
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            onClick={onCancel}
+            className="rounded-md border border-border px-4 py-1.5 text-sm text-muted-foreground hover:bg-background"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => onConfirm(notes)}
+            className="rounded-md bg-copper px-4 py-1.5 text-sm font-medium text-white hover:opacity-90"
+          >
+            Confirmar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Recorder() {
   const { session: initialSession, userId, orgId } = Route.useLoaderData();
   const [session, setSession] = useState<CaptureSession | null>(initialSession);
   const [loading, setLoading] = useState(false);
+  const [showNotesModal, setShowNotesModal] = useState(false);
+  const [watchedDirs, setWatchedDirs] = useState<WatchedDir[]>([]);
+  const [daemonDrafts, setDaemonDrafts] = useState<unknown[]>([]);
+
+  const daemonOnline = useDaemonStatus();
 
   const status = session?.status ?? "idle";
   const isActive = session !== null;
@@ -56,6 +133,18 @@ function Recorder() {
     try {
       const newSession = await createSession(userId, orgId);
       setSession(newSession);
+
+      if (daemonOnline) {
+        await fetch(`${DAEMON_URL}/session/start`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            session_id: newSession.id,
+            user_id: userId,
+            org_id: orgId,
+          }),
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -77,16 +166,46 @@ function Recorder() {
     }
   }
 
-  async function handleStop() {
+  /** Initiates the stop flow: shows the notes modal if daemon is online, else stops directly. */
+  async function handleStopRequest() {
     if (!session || loading) return;
+    if (daemonOnline) {
+      try {
+        const resp = await fetch(`${DAEMON_URL}/directories`);
+        const dirs = (await resp.json()) as WatchedDir[];
+        setWatchedDirs(dirs);
+      } catch {
+        setWatchedDirs([]);
+      }
+      setShowNotesModal(true);
+    } else {
+      await handleStopConfirm({});
+    }
+  }
+
+  /** Completes the stop after the user submits (or skips) the notes modal. */
+  async function handleStopConfirm(notes: Record<string, string>) {
+    if (!session) return;
+    setShowNotesModal(false);
     setLoading(true);
     const sessionId = session.id;
     try {
       await stopSession(sessionId);
       setSession(null);
-      triggerGenerateReport(sessionId).catch((e) => {
-        console.error("Erro ao gerar relatório:", e);
-      });
+
+      if (daemonOnline) {
+        const resp = await fetch(`${DAEMON_URL}/session/stop`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: sessionId, dir_notes: notes }),
+        });
+        const data = (await resp.json()) as { results?: unknown[] };
+        setDaemonDrafts(data.results ?? []);
+      } else {
+        triggerGenerateReport(sessionId).catch((e: unknown) => {
+          console.error("Erro ao gerar relatório:", e);
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -104,84 +223,90 @@ function Recorder() {
   }
 
   return (
-    <div className="flex items-center gap-3">
-      {isActive && (
-        <span className="font-mono text-xs text-muted-foreground">
-          {status === "active" ? (
+    <>
+      {showNotesModal && (
+        <NotesModal
+          dirs={watchedDirs}
+          onConfirm={handleStopConfirm}
+          onCancel={() => setShowNotesModal(false)}
+        />
+      )}
+      {daemonDrafts.length > 0 && (
+        <div className="fixed bottom-4 right-4 z-40 rounded-lg border border-border bg-surface p-3 text-xs text-muted-foreground shadow-lg">
+          {daemonDrafts.length} rascunho(s) gerado(s) pelo daemon
+        </div>
+      )}
+      <div className="flex items-center gap-3">
+        {isActive && (
+          <span className="font-mono text-xs text-muted-foreground">
+            {status === "active" ? (
+              <>
+                <span className="text-copper">●</span> gravando...
+              </>
+            ) : (
+              <>
+                <span>⏸</span> pausado
+              </>
+            )}
+          </span>
+        )}
+        <div className="flex items-center gap-1 rounded-md border border-border bg-surface p-1">
+          {!isActive && (
+            <button
+              onClick={handlePlay}
+              disabled={loading}
+              className="flex h-7 w-7 items-center justify-center rounded text-copper hover:bg-copper-soft disabled:opacity-40"
+              aria-label="Iniciar gravação"
+            >
+              <Play className="h-3.5 w-3.5 fill-current" />
+            </button>
+          )}
+          {isActive && (
             <>
-              <span className="text-copper">●</span> gravando...
-            </>
-          ) : (
-            <>
-              <span>⏸</span> pausado
+              <button
+                onClick={handlePauseResume}
+                disabled={loading}
+                className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-foreground disabled:opacity-40"
+                aria-label={status === "active" ? "Pausar" : "Retomar"}
+              >
+                {status === "active" ? (
+                  <Pause className="h-3.5 w-3.5" />
+                ) : (
+                  <Play className="h-3.5 w-3.5" />
+                )}
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={loading}
+                className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-40"
+                aria-label="Excluir sessão"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={handleStopRequest}
+                disabled={loading}
+                className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-foreground disabled:opacity-40"
+                aria-label="Finalizar"
+              >
+                <Square className="h-3.5 w-3.5 fill-current" />
+              </button>
             </>
           )}
-        </span>
-      )}
-      <div className="flex items-center gap-1 rounded-md border border-border bg-surface p-1">
-        {!isActive && (
-          <button
-            onClick={handlePlay}
-            disabled={loading}
-            className="flex h-7 w-7 items-center justify-center rounded text-copper hover:bg-copper-soft disabled:opacity-40"
-            aria-label="Iniciar gravação"
-          >
-            <Play className="h-3.5 w-3.5 fill-current" />
-          </button>
-        )}
-        {isActive && (
-          <>
-            <button
-              onClick={handlePauseResume}
-              disabled={loading}
-              className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-foreground disabled:opacity-40"
-              aria-label={status === "active" ? "Pausar" : "Retomar"}
-            >
-              {status === "active" ? (
-                <Pause className="h-3.5 w-3.5" />
-              ) : (
-                <Play className="h-3.5 w-3.5" />
-              )}
-            </button>
-            <button
-              onClick={handleDelete}
-              disabled={loading}
-              className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-40"
-              aria-label="Excluir sessão"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-            <button
-              onClick={handleStop}
-              disabled={loading}
-              className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-foreground disabled:opacity-40"
-              aria-label="Finalizar"
-            >
-              <Square className="h-3.5 w-3.5 fill-current" />
-            </button>
-          </>
-        )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
-function Heatmap({
-  activeDays,
-  streak,
-}: {
-  activeDays: string[];
-  streak: number;
-}) {
+function Heatmap({ activeDays, streak }: { activeDays: string[]; streak: number }) {
   const now = new Date();
   const totalDays = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   const monthLabel = new Intl.DateTimeFormat("pt-BR", {
     month: "long",
   }).format(now);
 
-  const activeDayNumbers = new Set(
-    activeDays.map((d) => parseInt(d.split("-")[2], 10)),
-  );
+  const activeDayNumbers = new Set(activeDays.map((d) => parseInt(d.split("-")[2], 10)));
   const days = Array.from({ length: totalDays }, (_, i) => ({
     day: i + 1,
     active: activeDayNumbers.has(i + 1),
@@ -201,8 +326,7 @@ function Heatmap({
       </div>
       <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
         <span>
-          {activeDays.length} {activeDays.length === 1 ? "dia" : "dias"} com
-          apontamento
+          {activeDays.length} {activeDays.length === 1 ? "dia" : "dias"} com apontamento
         </span>
         <span className="font-mono">{streak} seguidos</span>
       </div>
@@ -234,9 +358,7 @@ function Dashboard() {
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{greeting}</h1>
-          <p className="mt-1 text-sm text-muted-foreground capitalize">
-            {dateLabel}
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground capitalize">{dateLabel}</p>
         </div>
         <Recorder />
       </div>
@@ -303,16 +425,10 @@ function Dashboard() {
                         {formatDate(r.date)}
                       </span>
                     </div>
-                    <p className="line-clamp-2 text-sm text-muted-foreground">
-                      {r.preview}
-                    </p>
+                    <p className="line-clamp-2 text-sm text-muted-foreground">{r.preview}</p>
                     <div className="mt-3 flex flex-wrap gap-1.5">
-                      {r.done > 0 && (
-                        <Chip color="success">{r.done} concluída(s)</Chip>
-                      )}
-                      {r.doing > 0 && (
-                        <Chip color="copper">{r.doing} em andamento</Chip>
-                      )}
+                      {r.done > 0 && <Chip color="success">{r.done} concluída(s)</Chip>}
+                      {r.doing > 0 && <Chip color="copper">{r.doing} em andamento</Chip>}
                       {r.done === 0 && r.doing === 0 && (
                         <Chip color="teal">sem tarefas vinculadas</Chip>
                       )}
@@ -328,10 +444,7 @@ function Dashboard() {
           <div>
             <div className="mb-4 flex items-center justify-between">
               <p className="section-label">Minhas tarefas prioritárias</p>
-              <Link
-                to="/tarefas"
-                className="text-xs text-muted-foreground hover:text-foreground"
-              >
+              <Link to="/tarefas" className="text-xs text-muted-foreground hover:text-foreground">
                 Ver todas →
               </Link>
             </div>
@@ -389,9 +502,7 @@ function Dashboard() {
                         t.days < 0 ? "text-destructive" : "text-muted-foreground"
                       }`}
                     >
-                      {t.days < 0
-                        ? `${Math.abs(t.days)}d atrasada`
-                        : `${t.days}d`}
+                      {t.days < 0 ? `${Math.abs(t.days)}d atrasada` : `${t.days}d`}
                     </span>
                   </div>
                 ))
