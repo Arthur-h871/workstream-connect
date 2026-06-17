@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Play, Pause, Square, Trash2, GripVertical } from "lucide-react";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { AppShell } from "@/components/AppShell";
 import { getDashboardData, type DashboardData } from "backend/api/services/dashboard.service";
 import {
@@ -114,13 +114,16 @@ function NotesModal({
   );
 }
 
-function Recorder() {
+function Recorder({
+  setDaemonDrafts,
+}: {
+  setDaemonDrafts: React.Dispatch<React.SetStateAction<unknown[]>>;
+}) {
   const { session: initialSession, userId, orgId } = Route.useLoaderData();
   const [session, setSession] = useState<CaptureSession | null>(initialSession);
   const [loading, setLoading] = useState(false);
   const [showNotesModal, setShowNotesModal] = useState(false);
   const [watchedDirs, setWatchedDirs] = useState<WatchedDir[]>([]);
-  const [daemonDrafts, setDaemonDrafts] = useState<unknown[]>([]);
 
   const daemonOnline = useDaemonStatus();
 
@@ -135,15 +138,15 @@ function Recorder() {
       setSession(newSession);
 
       if (daemonOnline) {
-        await fetch(`${DAEMON_URL}/session/start`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            session_id: newSession.id,
-            user_id: userId,
-            org_id: orgId,
-          }),
-        });
+        try {
+          await fetch(`${DAEMON_URL}/session/start`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ session_id: newSession.id, user_id: userId, org_id: orgId }),
+          });
+        } catch {
+          // best-effort; session continues without daemon
+        }
       }
     } finally {
       setLoading(false);
@@ -169,6 +172,7 @@ function Recorder() {
   /** Initiates the stop flow: shows the notes modal if daemon is online, else stops directly. */
   async function handleStopRequest() {
     if (!session || loading) return;
+    setLoading(true);
     if (daemonOnline) {
       try {
         const resp = await fetch(`${DAEMON_URL}/directories`);
@@ -178,6 +182,7 @@ function Recorder() {
         setWatchedDirs([]);
       }
       setShowNotesModal(true);
+      setLoading(false);
     } else {
       await handleStopConfirm({});
     }
@@ -194,13 +199,20 @@ function Recorder() {
       setSession(null);
 
       if (daemonOnline) {
-        const resp = await fetch(`${DAEMON_URL}/session/stop`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ session_id: sessionId, dir_notes: notes }),
-        });
-        const data = (await resp.json()) as { results?: unknown[] };
-        setDaemonDrafts(data.results ?? []);
+        try {
+          const resp = await fetch(`${DAEMON_URL}/session/stop`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ session_id: sessionId, dir_notes: notes }),
+          });
+          const data = (await resp.json()) as { results?: unknown[] };
+          setDaemonDrafts(data.results ?? []);
+        } catch {
+          // daemon unavailable — fall through to screenshot-based generation
+          triggerGenerateReport(sessionId).catch((e: unknown) => {
+            console.error("Erro ao gerar relatório:", e);
+          });
+        }
       } else {
         triggerGenerateReport(sessionId).catch((e: unknown) => {
           console.error("Erro ao gerar relatório:", e);
@@ -228,13 +240,11 @@ function Recorder() {
         <NotesModal
           dirs={watchedDirs}
           onConfirm={handleStopConfirm}
-          onCancel={() => setShowNotesModal(false)}
+          onCancel={() => {
+            setShowNotesModal(false);
+            setLoading(false);
+          }}
         />
-      )}
-      {daemonDrafts.length > 0 && (
-        <div className="fixed bottom-4 right-4 z-40 rounded-lg border border-border bg-surface p-3 text-xs text-muted-foreground shadow-lg">
-          {daemonDrafts.length} rascunho(s) gerado(s) pelo daemon
-        </div>
       )}
       <div className="flex items-center gap-3">
         {isActive && (
@@ -337,6 +347,7 @@ function Heatmap({ activeDays, streak }: { activeDays: string[]; streak: number 
 function Dashboard() {
   const { data, fullName } = Route.useLoaderData();
   const firstName = fullName.split(" ")[0];
+  const [daemonDrafts, setDaemonDrafts] = useState<unknown[]>([]);
 
   const now = new Date();
   const hour = now.getHours();
@@ -360,8 +371,11 @@ function Dashboard() {
           <h1 className="text-2xl font-semibold tracking-tight">{greeting}</h1>
           <p className="mt-1 text-sm text-muted-foreground capitalize">{dateLabel}</p>
         </div>
-        <Recorder />
+        <Recorder setDaemonDrafts={setDaemonDrafts} />
       </div>
+      {daemonDrafts.length > 0 && (
+        <div data-testid="drafts-ready" data-count={daemonDrafts.length} />
+      )}
 
       <div className="grid grid-cols-12 gap-6">
         <section className="col-span-12 rounded-lg border border-border bg-surface p-6 md:col-span-5">
