@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 
 const SUPABASE_URL = "https://zuovkxvykjcozxlilmby.supabase.co";
 const ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp1b3ZreHZ5a2pjb3p4bGlsbWJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2NzE1NjUsImV4cCI6MjA5NjI0NzU2NX0.k2lh-kT8zbjcuQZ2QBCeD2lmHmaUfqMEW6-w1y_SNVk";
+  process.env.VITE_SUPABASE_ANON_KEY ??
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp1b3ZreHZ5a2pjb3p4bGlsbWJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgwNDk3MjAsImV4cCI6MjA2MzYyNTcyMH0.KFT_4PJ0OHC39h9q4lsz0GRpTSFqwQ5xtSMb9_0VbC0";
 const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/cleanup-screenshots`;
 const CRON_JOB_NAME = "cleanup-screenshots-daily";
 const EXPECTED_SCHEDULE = "0 2 * * *";
