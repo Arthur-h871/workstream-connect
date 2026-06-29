@@ -1,0 +1,10 @@
+{
+  "project_id": "zuovkxvykjcozxlilmby",
+  "functions": [
+    {
+      "name": "cleanup-screenshots",
+      "schedule": "0 2 * * *",
+      "timeout_sec": 120
+    }
+  ]
+}
