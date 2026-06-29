@@ -2,15 +2,15 @@
 
 ## Overview
 
-The `cleanup-screenshots` Edge Function runs daily at **3:00 AM UTC** to remove:
+The `cleanup-screenshots` Edge Function runs daily at **2:00 AM UTC** to remove:
 1. Screenshots marked as soft-deleted (`deleted_at IS NOT NULL`)
 2. Screenshots expired per organization retention policy
 
 ## Schedule
 
 - **Frequency:** Every 24 hours
-- **Time:** 3:00 AM UTC (to avoid peak hours)
-- **Cron:** `0 3 * * *` (POSIX format)
+- **Time:** 2:00 AM UTC (to avoid peak hours)
+- **Cron:** `0 2 * * *` (POSIX format)
 - **Timeout:** 120 seconds max
 
 ## What It Cleans
@@ -33,7 +33,7 @@ The `cleanup-screenshots` Edge Function runs daily at **3:00 AM UTC** to remove:
 2. Navigate to: Functions → cleanup-screenshots
 3. Look at **Executions** tab
 4. Check:
-   - Execution timestamp (should be ~3:00 AM UTC daily)
+   - Execution timestamp (should be ~2:00 AM UTC daily)
    - Duration (should be <30s normally)
    - Status (green ✅ = success, red ❌ = error)
 
@@ -79,7 +79,7 @@ To change the cron schedule, run the following SQL in the Supabase SQL editor:
 ```sql
 -- To change schedule, run in Supabase SQL editor:
 SELECT cron.unschedule('cleanup-screenshots-daily');
-SELECT cron.schedule('cleanup-screenshots-daily', '0 3 * * *', $$
+SELECT cron.schedule('cleanup-screenshots-daily', '0 2 * * *', $$
   SELECT net.http_post(
     url := 'https://zuovkxvykjcozxlilmby.supabase.co/functions/v1/cleanup-screenshots',
     headers := '{"Content-Type": "application/json"}'::jsonb,
@@ -88,13 +88,13 @@ SELECT cron.schedule('cleanup-screenshots-daily', '0 3 * * *', $$
 $$);
 ```
 
-For example, to change to 4:00 AM UTC, replace `'0 3 * * *'` with `'0 4 * * *'`.
+For example, to change to 4:00 AM UTC, replace `'0 2 * * *'` with `'0 4 * * *'`.
 
 Then verify in the Supabase dashboard.
 
 ## Expected Behavior
 
-- **First run:** ~3:00-3:05 AM UTC (day after deployment)
+- **First run:** ~2:00-2:05 AM UTC (day after deployment)
 - **Every 24h after:** Same time the next day
 - **No manual intervention needed:** Cron runs automatically
 
@@ -110,7 +110,7 @@ Every Monday morning, verify:
 
 - [ ] Last 7 daily executions all have status ✅ (success)
 - [ ] No execution has duration > 60 seconds (indicate slowness)
-- [ ] Execution times cluster around 3:00-3:05 AM UTC
+- [ ] Execution times cluster around 2:00-2:05 AM UTC
 - [ ] Error logs are empty or only contain expected non-fatal messages
 
 If any item fails:
