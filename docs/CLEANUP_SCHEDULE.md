@@ -13,6 +13,18 @@ The `cleanup-screenshots` Edge Function runs daily at **2:00 AM UTC** to remove:
 - **Cron:** `0 2 * * *` (POSIX format)
 - **Timeout:** 120 seconds max
 
+## Deployment Requirements
+
+Before the cron schedule works, the following must be set in the Supabase dashboard:
+
+1. **`verify_jwt: false`** on the `cleanup-screenshots` Edge Function  
+   Path: Functions → cleanup-screenshots → Settings → JWT Verification → Disabled  
+   **Why:** pg_cron's `net.http_post` call carries no `Authorization` header. If JWT verification is enabled, the scheduled call will receive a 401 and silently fail every night.
+
+2. **pg_cron and pg_net extensions enabled** (handled by migration `20260629000000_enable_pg_cron_pg_net.sql`)
+
+3. **Cron job registered** (handled by the same migration — verify with `SELECT * FROM cron.job WHERE jobname = 'cleanup-screenshots-daily';`)
+
 ## What It Cleans
 
 ### Soft-Deleted Screenshots

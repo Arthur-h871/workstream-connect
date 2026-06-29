@@ -62,31 +62,42 @@ Monthly estimate (if cleaning ~5K screenshots/month):
 
 ## Dashboard Queries
 
-Add these to a monitoring dashboard if available:
+Supabase does not expose edge function execution history via a SQL table. Use these methods instead:
 
-```sql
--- Last cleanup execution (status & time)
-SELECT 
-  created_at,
-  status,
-  duration_ms
-FROM function_executions
-WHERE function_name = 'cleanup-screenshots'
-ORDER BY created_at DESC
-LIMIT 1;
+### Supabase Dashboard (Recommended)
+
+1. Go to https://app.supabase.com → your project
+2. Navigate to: **Functions → cleanup-screenshots → Logs**
+3. Filter by date range to see past executions, duration, and status
+
+### Management API (Programmatic)
+
+Query function logs via the Supabase Management API:
+
+```bash
+curl -s "https://api.supabase.com/v1/projects/zuovkxvykjcozxlilmby/functions/cleanup-screenshots/executions?limit=30" \
+  -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+  | jq '.[] | {created_at, status, duration_ms}'
 ```
 
+(Requires `SUPABASE_ACCESS_TOKEN` from https://app.supabase.com/account/tokens)
+
+### pg_cron Execution Log (SQL)
+
+pg_cron tracks job run history in `cron.job_run_details`:
+
 ```sql
--- Cleanup frequency check
 SELECT 
-  DATE(created_at) as date,
-  COUNT(*) as execution_count,
-  AVG(duration_ms) as avg_duration_ms
-FROM function_executions
-WHERE function_name = 'cleanup-screenshots'
-  AND created_at > NOW() - INTERVAL '30 days'
-GROUP BY date
-ORDER BY date DESC;
+  runid,
+  job_pid,
+  status,
+  return_message,
+  start_time,
+  end_time
+FROM cron.job_run_details
+WHERE jobid = (SELECT jobid FROM cron.job WHERE jobname = 'cleanup-screenshots-daily')
+ORDER BY start_time DESC
+LIMIT 30;
 ```
 
 ## Alerts (Optional)
