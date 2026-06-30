@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Camera, Flame } from "lucide-react";
-import { useState, useRef } from "react";
-import { AppShell } from "@/components/AppShell";
+import { useEffect, useRef, useState } from "react";
+import { useProfile } from "@/lib/authenticated-profile-context";
+import { mergeCachedAuthenticatedProfile } from "@/lib/authenticated-profile-cache";
 import {
   getProfileStats,
   uploadAvatar,
@@ -22,27 +23,38 @@ export const Route = createFileRoute("/_authenticated/perfil")({
     ],
   }),
   loader: async ({ context }) => {
-    const userId = context.profile.id;
-    const [stats, email] = await Promise.all([
-      getProfileStats(userId),
-      getCurrentUserEmail(),
-    ]);
     return {
       profile: context.profile as Profile,
-      stats,
-      email,
     };
   },
-  component: () => (
-    <AppShell>
-      <Perfil />
-    </AppShell>
-  ),
+  component: Perfil,
 });
 
 function Perfil() {
-  const { profile, stats, email } = Route.useLoaderData();
+  const { profile } = Route.useLoaderData();
   const initials = getInitials(profile.full_name);
+  const [stats, setStats] = useState({ horasNoMes: 0, streak: 0 });
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+
+    Promise.all([getProfileStats(profile.id), getCurrentUserEmail()])
+      .then(([nextStats, nextEmail]) => {
+        if (cancelled) return;
+        setStats(nextStats);
+        setEmail(nextEmail);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [profile.id]);
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
@@ -51,14 +63,14 @@ function Perfil() {
           <div>
             <p className="section-label">Horas este mês</p>
             <p className="mt-2 text-3xl font-semibold text-copper">
-              {formatHours(stats.horasNoMes)}
+              {loading ? "..." : formatHours(stats.horasNoMes)}
             </p>
           </div>
           <div>
             <p className="section-label">Sequência</p>
             <p className="mt-2 flex items-center gap-2 text-3xl font-semibold">
               <Flame className="h-6 w-6 text-copper" />
-              <span>{stats.streak}</span>
+              <span>{loading ? "..." : stats.streak}</span>
             </p>
           </div>
         </div>
@@ -90,6 +102,7 @@ function AvatarSection({
   initialAvatarUrl: string | null;
   initials: string;
 }) {
+  const { setProfile } = useProfile();
   const [avatarUrl, setAvatarUrl] = useState(initialAvatarUrl);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -99,7 +112,11 @@ function AvatarSection({
     if (!file) return;
     setUploading(true);
     const url = await uploadAvatar(userId, file);
-    if (url) setAvatarUrl(url);
+    if (url) {
+      setAvatarUrl(url);
+      mergeCachedAuthenticatedProfile({ avatar_url: url });
+      setProfile((current) => ({ ...current, avatar_url: url }));
+    }
     setUploading(false);
     e.target.value = "";
   }
@@ -153,6 +170,7 @@ function PersonalInfoSection({
   initialName: string;
   email: string;
 }) {
+  const { setProfile } = useProfile();
   const [name, setName] = useState(initialName);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -162,6 +180,8 @@ function PersonalInfoSection({
     if (!trimmed) return;
     setSaving(true);
     await updateProfile(userId, { full_name: trimmed });
+    mergeCachedAuthenticatedProfile({ full_name: trimmed });
+    setProfile((current) => ({ ...current, full_name: trimmed }));
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);

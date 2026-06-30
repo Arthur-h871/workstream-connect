@@ -10,6 +10,9 @@ type DirectoryDiff = {
 type DirectoryDraftContent = {
   content: string;
   hours_worked: number;
+  type?: string;
+  claude_code_session_id?: string;
+  claude_code_session_url?: string;
 };
 
 type DirectoryDraft = {
@@ -47,9 +50,22 @@ function castDraft(raw: unknown): DirectoryDraft {
     },
     draft: {
       content: String(draft.content ?? ""),
-      hours_worked: Number(draft.hours_worked ?? 0.25),
+      hours_worked: (() => { const h = Number(draft.hours_worked); return isNaN(h) ? 0.25 : h; })(),
+      type: typeof draft.type === "string" ? draft.type : undefined,
+      claude_code_session_id:
+        typeof draft.claude_code_session_id === "string"
+          ? draft.claude_code_session_id
+          : undefined,
+      claude_code_session_url:
+        typeof draft.claude_code_session_url === "string"
+          ? draft.claude_code_session_url
+          : undefined,
     },
   };
+}
+
+function isRoutineSessionDraft(draft: DirectoryDraftContent): boolean {
+  return Boolean(draft.claude_code_session_url);
 }
 
 /** Review panel shown after a daemon session stops — lets the user edit and confirm apontamentos. */
@@ -69,9 +85,20 @@ export function DaemonDraftReview({ sessionId, drafts, orgId, userId, onComplete
     setLoading(true);
     setError(null);
     const today = new Date().toISOString().split("T")[0];
-    try {
-      for (const d of typed) {
-        if (totalChanges(d.diff) === 0) continue;
+    const toCreate = typed.filter(
+      (d) => totalChanges(d.diff) > 0 && !isRoutineSessionDraft(d.draft),
+    );
+
+    if (toCreate.length === 0) {
+      setLoading(false);
+      onComplete();
+      return;
+    }
+
+    let failures = 0;
+
+    for (const d of toCreate) {
+      try {
         await createApontamentoFromDraft({
           user_id: userId,
           organization_id: orgId,
@@ -80,12 +107,18 @@ export function DaemonDraftReview({ sessionId, drafts, orgId, userId, onComplete
           content: contents[d.dir_id] ?? "",
           hours_worked: hours[d.dir_id] ?? 0.25,
         });
+      } catch {
+        failures++;
       }
+    }
+
+    setLoading(false);
+    if (failures > 0) {
+      setError(
+        `${failures} de ${toCreate.length} apontamento${toCreate.length > 1 ? "s" : ""} não pôde ser criado. Tente confirmar novamente.`,
+      );
+    } else {
       onComplete();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erro ao criar apontamentos.");
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -105,7 +138,28 @@ export function DaemonDraftReview({ sessionId, drafts, orgId, userId, onComplete
               {d.diff.deleted.length} deletados
             </p>
           </div>
-          {totalChanges(d.diff) > 0 ? (
+          {isRoutineSessionDraft(d.draft) ? (
+            <div className="rounded-md border border-copper/30 bg-copper-soft/40 px-3 py-3 text-sm text-muted-foreground">
+              <p className="font-medium text-foreground">Routine disparada no Claude Code</p>
+              <p className="mt-1">
+                O daemon enviou o contexto para a routine e recebeu uma sessao do Claude Code em vez
+                de um draft pronto para edicao.
+              </p>
+              <a
+                href={d.draft.claude_code_session_url}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 inline-flex rounded-md border border-copper/40 px-3 py-1.5 text-sm font-medium text-copper hover:bg-copper-soft"
+              >
+                Abrir chat da routine
+              </a>
+              {d.draft.claude_code_session_id ? (
+                <p className="mt-2 font-mono text-xs opacity-70">
+                  Sessao: {d.draft.claude_code_session_id}
+                </p>
+              ) : null}
+            </div>
+          ) : totalChanges(d.diff) > 0 ? (
             <>
               <textarea
                 className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm text-muted-foreground focus:outline-none focus:ring-1 focus:ring-copper"
@@ -142,7 +196,11 @@ export function DaemonDraftReview({ sessionId, drafts, orgId, userId, onComplete
           disabled={loading}
           className="rounded-md bg-copper px-4 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
         >
-          {loading ? "Criando..." : "Confirmar e criar apontamentos"}
+          {loading
+            ? "Processando..."
+            : typed.some((d) => !isRoutineSessionDraft(d.draft) && totalChanges(d.diff) > 0)
+              ? "Confirmar e criar apontamentos"
+              : "Fechar"}
         </button>
         <button
           onClick={onComplete}

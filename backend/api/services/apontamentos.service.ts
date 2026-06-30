@@ -21,6 +21,16 @@ export type Apontamento = {
   screenshot_count: number;
 };
 
+export type ApontamentoSummary = {
+  id: string;
+  date: string;
+  content: string;
+  hours_worked: number;
+  created_at: string;
+  session_id: string | null;
+  screenshot_count: number;
+};
+
 const SELECT = `
   id, date, content, hours_worked, created_at, session_id,
   capture_sessions ( screenshot_count ),
@@ -32,6 +42,11 @@ const SELECT = `
     id, status,
     org_tasks ( id, title )
   )
+`.trim();
+
+const SELECT_SUMMARY = `
+  id, date, content, hours_worked, created_at, session_id,
+  capture_sessions ( screenshot_count )
 `.trim();
 
 function mapRow(row: any): Apontamento {
@@ -61,6 +76,30 @@ function mapRow(row: any): Apontamento {
   };
 }
 
+function mapSummaryRow(row: any): ApontamentoSummary {
+  return {
+    id: row.id,
+    date: row.date,
+    content: row.content,
+    hours_worked: Number(row.hours_worked),
+    created_at: row.created_at,
+    session_id: row.session_id,
+    screenshot_count: row.capture_sessions?.screenshot_count ?? 0,
+  };
+}
+
+export async function getApontamentoSummaries(userId: string): Promise<ApontamentoSummary[]> {
+  const { data, error } = await supabase
+    .from("apontamentos")
+    .select(SELECT_SUMMARY)
+    .eq("user_id", userId)
+    .order("date", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (error) return [];
+  return (data ?? []).map(mapSummaryRow);
+}
+
 export async function getApontamentos(userId: string): Promise<Apontamento[]> {
   const { data, error } = await supabase
     .from("apontamentos")
@@ -71,6 +110,12 @@ export async function getApontamentos(userId: string): Promise<Apontamento[]> {
 
   if (error) return [];
   return (data ?? []).map(mapRow);
+}
+
+export async function getApontamentoById(id: string): Promise<Apontamento | null> {
+  const { data, error } = await supabase.from("apontamentos").select(SELECT).eq("id", id).single();
+  if (error || !data) return null;
+  return mapRow(data);
 }
 
 export async function createApontamento(data: {

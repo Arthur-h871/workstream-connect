@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Plus, MoreHorizontal } from "lucide-react";
 import { useState } from "react";
-import { AppShell } from "@/components/AppShell";
+import { toast } from "sonner";
 import {
   getProjects,
   createProject,
@@ -10,6 +10,9 @@ import {
 } from "backend/api/services/projects.service";
 
 export const Route = createFileRoute("/_authenticated/tarefas-org")({
+  staticData: {
+    shellTitle: "Tarefas da Organização",
+  },
   head: () => ({
     meta: [
       { title: "Tarefas da Organização — Marco" },
@@ -28,11 +31,7 @@ export const Route = createFileRoute("/_authenticated/tarefas-org")({
       isAdmin: context.profile.role !== "tenant_user",
     };
   },
-  component: () => (
-    <AppShell title="Tarefas da Organização">
-      <TarefasOrg />
-    </AppShell>
-  ),
+  component: TarefasOrg,
 });
 
 function TarefasOrg() {
@@ -47,21 +46,29 @@ function TarefasOrg() {
     color: string;
     due_date: string;
   }) {
-    const created = await createProject({
-      orgId,
-      createdBy: userId,
-      name: fields.name,
-      description: fields.description || null,
-      color: fields.color,
-      due_date: fields.due_date || null,
-    });
-    if (created) setProjects((prev) => [created, ...prev]);
-    setShowModal(false);
+    try {
+      const created = await createProject({
+        orgId,
+        createdBy: userId,
+        name: fields.name,
+        description: fields.description || null,
+        color: fields.color,
+        due_date: fields.due_date || null,
+      });
+      if (created) setProjects((prev) => [created, ...prev]);
+      setShowModal(false);
+    } catch {
+      toast.error("Erro ao criar projeto.");
+    }
   }
 
   async function handleClose(id: string) {
-    setProjects((prev) => prev.filter((p) => p.id !== id));
-    await closeProject(id);
+    try {
+      await closeProject(id);
+      setProjects((prev) => prev.filter((p) => p.id !== id));
+    } catch {
+      toast.error("Erro ao fechar projeto.");
+    }
   }
 
   return (

@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Plus, GripVertical, ChevronDown, Trash2 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
+import { toast } from "sonner";
 import {
   DndContext,
   closestCenter,
@@ -16,7 +17,6 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { AppShell } from "@/components/AppShell";
 import {
   getPersonalTasks,
   createPersonalTask,
@@ -27,6 +27,9 @@ import {
 } from "backend/api/services/tarefas.service";
 
 export const Route = createFileRoute("/_authenticated/tarefas")({
+  staticData: {
+    shellTitle: "Minhas Tarefas",
+  },
   head: () => ({
     meta: [
       { title: "Minhas Tarefas — Marco" },
@@ -37,11 +40,7 @@ export const Route = createFileRoute("/_authenticated/tarefas")({
     const tasks = await getPersonalTasks(context.profile.id);
     return { tasks, userId: context.profile.id };
   },
-  component: () => (
-    <AppShell title="Minhas Tarefas">
-      <Tarefas />
-    </AppShell>
-  ),
+  component: Tarefas,
 });
 
 const STATUS_LABELS: Record<PersonalTask["status"], string> = {
@@ -76,9 +75,13 @@ function Tarefas() {
       setAdding(false);
       return;
     }
-    const task = await createPersonalTask(userId, title);
-    if (task) setTasks((prev) => [...prev, task]);
-    setNewTitle("");
+    try {
+      const task = await createPersonalTask(userId, title);
+      if (task) setTasks((prev) => [...prev, task]);
+      setNewTitle("");
+    } catch {
+      toast.error("Erro ao criar tarefa.");
+    }
   }
 
   async function handleDragEnd(event: DragEndEvent) {
@@ -88,15 +91,25 @@ function Tarefas() {
     const oldIndex = tasks.findIndex((t) => t.id === active.id);
     const newIndex = tasks.findIndex((t) => t.id === over.id);
     const reordered = arrayMove(tasks, oldIndex, newIndex);
+    const previous = tasks;
 
     setTasks(reordered);
-    await reorderPersonalTasks(reordered.map((t, i) => ({ id: t.id, priority: i })));
+    try {
+      await reorderPersonalTasks(reordered.map((t, i) => ({ id: t.id, priority: i })));
+    } catch {
+      setTasks(previous);
+      toast.error("Erro ao salvar nova ordem.");
+    }
   }
 
   async function handleDelete(id: string) {
-    setTasks((prev) => prev.filter((t) => t.id !== id));
-    if (expanded === id) setExpanded(null);
-    await deletePersonalTask(id);
+    try {
+      await deletePersonalTask(id);
+      setTasks((prev) => prev.filter((t) => t.id !== id));
+      if (expanded === id) setExpanded(null);
+    } catch {
+      toast.error("Erro ao excluir tarefa.");
+    }
   }
 
   function updateLocal(id: string, fields: Partial<PersonalTask>) {
@@ -195,7 +208,9 @@ function TaskRow({
     onUpdate(task.id, { title: value });
     if (titleTimerRef.current) clearTimeout(titleTimerRef.current);
     titleTimerRef.current = setTimeout(() => {
-      updatePersonalTask(task.id, { title: value });
+      updatePersonalTask(task.id, { title: value }).catch(() =>
+        toast.error("Erro ao salvar título."),
+      );
     }, 800);
   }
 
@@ -203,18 +218,33 @@ function TaskRow({
     onUpdate(task.id, { description: value });
     if (descTimerRef.current) clearTimeout(descTimerRef.current);
     descTimerRef.current = setTimeout(() => {
-      updatePersonalTask(task.id, { description: value });
+      updatePersonalTask(task.id, { description: value }).catch(() =>
+        toast.error("Erro ao salvar descrição."),
+      );
     }, 800);
   }
 
   async function handleStatusChange(status: PersonalTask["status"]) {
+    const previous = task.status;
     onUpdate(task.id, { status });
-    await updatePersonalTask(task.id, { status });
+    try {
+      await updatePersonalTask(task.id, { status });
+    } catch {
+      onUpdate(task.id, { status: previous });
+      toast.error("Erro ao atualizar status.");
+    }
   }
 
   async function handleDueDateChange(due_date: string) {
-    onUpdate(task.id, { due_date: due_date || null });
-    await updatePersonalTask(task.id, { due_date: due_date || null });
+    const value = due_date || null;
+    const previous = task.due_date;
+    onUpdate(task.id, { due_date: value });
+    try {
+      await updatePersonalTask(task.id, { due_date: value });
+    } catch {
+      onUpdate(task.id, { due_date: previous });
+      toast.error("Erro ao salvar prazo.");
+    }
   }
 
   const done = task.status === "completed";

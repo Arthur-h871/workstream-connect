@@ -17,13 +17,25 @@ export function TaskMentionDropdown({ results, loading, onSelect, onClose }: Pro
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if (e.key === "Escape") { onClose(); return }
-      if (e.key === "ArrowDown") { setActiveIndex(i => Math.min(i + 1, results.length - 1)); e.preventDefault() }
-      if (e.key === "ArrowUp") { setActiveIndex(i => Math.max(i - 1, 0)); e.preventDefault() }
+      if (e.key === "ArrowDown" && results.length > 0) {
+        setActiveIndex(i => Math.min(i + 1, results.length - 1))
+        e.preventDefault()
+      }
+      if (e.key === "ArrowUp" && results.length > 0) {
+        setActiveIndex(i => Math.max(i - 1, 0))
+        e.preventDefault()
+      }
       if (e.key === "Enter" && results[activeIndex]) { onSelect(results[activeIndex]); e.preventDefault() }
     }
     window.addEventListener("keydown", handleKey)
     return () => window.removeEventListener("keydown", handleKey)
   }, [results, activeIndex, onSelect, onClose])
+
+  useEffect(() => {
+    if (!listRef.current) return
+    const active = listRef.current.querySelector("[data-active='true']") as HTMLElement | null
+    active?.scrollIntoView({ block: "nearest" })
+  }, [activeIndex])
 
   const personal = results.filter(r => r.type === "personal")
   const org = results.filter(r => r.type === "org")
@@ -62,6 +74,7 @@ function ResultItem({ item, active, onSelect }: { item: TaskResult; active: bool
   const Icon = item.type === "personal" ? User : Building2
   return (
     <button
+      data-active={active}
       onClick={() => onSelect(item)}
       className={`flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors ${active ? "bg-copper-soft text-copper" : "hover:bg-background"}`}
     >

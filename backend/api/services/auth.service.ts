@@ -1,6 +1,8 @@
 import { supabase } from "backend/api/supabase";
+import { invalidateAuthenticatedProfile } from "@/lib/authenticated-profile-cache";
 
 export async function signIn(email: string, password: string) {
+  invalidateAuthenticatedProfile();
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
@@ -30,6 +32,7 @@ export async function signUp(
 
 export async function signOut() {
   const { error } = await supabase.auth.signOut();
+  invalidateAuthenticatedProfile();
   return { error };
 }
 
@@ -61,6 +64,16 @@ export async function checkPendingSignup(email: string): Promise<boolean> {
 export async function cancelPendingSignup(email: string): Promise<{ error: string | null }> {
   const { error } = await supabase.functions.invoke("cancel-pending-signup", {
     body: { email },
+  });
+  if (error) return { error: error.message };
+  return { error: null };
+}
+
+export async function deleteAccount(): Promise<{ error: string | null }> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return { error: "Não autenticado" };
+  const { error } = await supabase.functions.invoke("delete-account", {
+    headers: { Authorization: `Bearer ${session.access_token}` },
   });
   if (error) return { error: error.message };
   return { error: null };

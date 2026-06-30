@@ -101,6 +101,36 @@
   .font-mono { font-family: var(--font-mono); }
 }
 
+/* ReactFlow Controls — override default white theme */
+.react-flow__controls {
+  --xy-controls-button-background-color: #1C1917;
+  --xy-controls-button-background-color-hover: #2C2925;
+  --xy-controls-button-border-color: #2C2925;
+  --xy-controls-button-color: #FAF7F0;
+  --xy-controls-button-color-hover: #FAF7F0;
+  --xy-controls-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #2C2925;
+}
+
+.react-flow__controls-button {
+  background: #1C1917;
+  border-bottom-color: #2C2925;
+  color: #FAF7F0;
+}
+
+.react-flow__controls-button:hover {
+  background: #2C2925;
+}
+
+.react-flow__controls-button svg {
+  fill: #FAF7F0;
+  max-width: 12px;
+  max-height: 12px;
+}
+
 @layer utilities {
   .section-label {
     font-size: 11px;

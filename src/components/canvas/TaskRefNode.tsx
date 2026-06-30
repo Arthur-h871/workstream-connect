@@ -1,6 +1,7 @@
 import { memo, useState, useCallback } from "react"
-import { Handle, Position, NodeResizer, type NodeProps } from "@xyflow/react"
+import { NodeResizer, type NodeProps } from "@xyflow/react"
 import { Link, X, Circle, Clock, CheckCircle2, Maximize2 } from "lucide-react"
+import { CanvasConnectionHandles } from "@/components/canvas/CanvasConnectionHandles"
 
 export type TaskStatus = "queued" | "in_progress" | "completed"
 
@@ -18,6 +19,7 @@ export type TaskRefNodeData = {
     newStatus: TaskStatus,
   ) => void
   onOpenPopup: (id: string) => void
+  onResizeEnd: (id: string, width: number, height: number) => void
 }
 
 const STATUS_CYCLE: Record<TaskStatus, TaskStatus> = {
@@ -58,9 +60,11 @@ export const TaskRefNode = memo(function TaskRefNode({ id, data, selected }: Nod
         selected ? "border-copper" : "border-border"
       }`}
     >
-      <NodeResizer minWidth={200} minHeight={100} isVisible={selected} />
-      <Handle type="target" position={Position.Left} className="opacity-0 hover:opacity-100" />
-      <Handle type="source" position={Position.Right} className="opacity-0 hover:opacity-100" />
+      <NodeResizer
+        minWidth={200} minHeight={100} isVisible={selected}
+        onResizeEnd={(_, params) => typedData.onResizeEnd(id, params.width, params.height)}
+      />
+      <CanvasConnectionHandles nodeId={id} />
 
       <div className="flex items-center justify-between border-b border-border px-3 py-1.5 cursor-grab active:cursor-grabbing">
         <div className="flex items-center gap-1.5">

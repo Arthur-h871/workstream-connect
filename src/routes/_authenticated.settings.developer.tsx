@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { AppShell } from "@/components/AppShell";
 
-const DAEMON_URL = "http://localhost:7432";
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL ?? "http://localhost:7432";
 
 type WatchedDir = {
   id: string;
@@ -117,35 +116,34 @@ function DeveloperSettingsPage() {
   };
 
   return (
-    <AppShell>
-      <div className="max-w-2xl">
-        <div className="mb-6">
-          <h1 className="text-xl font-semibold">Configurações de Desenvolvedor</h1>
+    <div className="max-w-2xl">
+      <div className="mb-6">
+        <h1 className="text-xl font-semibold">Configurações de Desenvolvedor</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Diretórios monitorados para detecção de arquivos alterados durante sessões.
+        </p>
+      </div>
+
+      <div className="mb-3 flex items-center gap-2">
+        <span
+          className={`inline-flex h-2 w-2 rounded-full ${daemonOnline ? "bg-green-500" : "bg-muted-foreground"}`}
+        />
+        <span className="text-xs text-muted-foreground">
+          {loading ? "Verificando daemon..." : daemonOnline ? "Daemon online" : "Daemon offline"}
+        </span>
+      </div>
+
+      {!loading && !daemonOnline && (
+        <div className="mb-8 rounded-lg border border-border bg-surface p-5">
+          <p className="text-sm font-medium text-foreground">Daemon não detectado</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Diretórios monitorados para detecção de arquivos alterados durante sessões.
+            Inicie o workstream-daemon e recarregue a página:
           </p>
+          <pre className="mt-3 rounded-md border border-border bg-background px-3 py-2 font-mono text-xs text-foreground">
+            python -m daemon
+          </pre>
         </div>
-
-        <div className="mb-3 flex items-center gap-2">
-          <span
-            className={`inline-flex h-2 w-2 rounded-full ${daemonOnline ? "bg-green-500" : "bg-muted-foreground"}`}
-          />
-          <span className="text-xs text-muted-foreground">
-            {loading ? "Verificando daemon..." : daemonOnline ? "Daemon online" : "Daemon offline"}
-          </span>
-        </div>
-
-        {!loading && !daemonOnline && (
-          <div className="mb-8 rounded-lg border border-border bg-surface p-5">
-            <p className="text-sm font-medium text-foreground">Daemon não detectado</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Inicie o workstream-daemon e recarregue a página:
-            </p>
-            <pre className="mt-3 rounded-md border border-border bg-background px-3 py-2 font-mono text-xs text-foreground">
-              python -m daemon
-            </pre>
-          </div>
-        )}
+      )}
 
         {daemonOnline && (
           <>
@@ -248,7 +246,6 @@ function DeveloperSettingsPage() {
             </div>
           </>
         )}
-      </div>
-    </AppShell>
+    </div>
   );
 }

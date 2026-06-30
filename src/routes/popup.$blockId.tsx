@@ -1,16 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router"
 import { useState, useRef, useEffect } from "react"
+import { toast } from "sonner"
 import { X, FileText, CheckSquare, Link as LinkIcon, Plus, Trash2 } from "lucide-react"
 import { getBlock, updateBlock, updateTaskStatus } from "backend/api/services/notes.service"
-import type { TodoItem } from "@/components/canvas/TodoListNode"
+import { getSession } from "backend/api/services/auth.service"
 import type { TaskStatus } from "@/components/canvas/TaskRefNode"
+import {
+  appendTodoItem,
+  deleteTodoBranch,
+  normalizeTextContent,
+  toggleTodoItemChecked,
+  type TextBlockContent,
+  type TodoBlockContent,
+  type TodoItem,
+} from "@/lib/notes-model"
 
-export const Route = createFileRoute("/_authenticated/popup/$blockId")({
-  loader: async ({ params }) => {
-    const block = await getBlock(params.blockId)
-    if (!block) throw new Error("Block not found")
-    return { block }
-  },
+export const Route = createFileRoute("/popup/$blockId")({
   component: PopupEditor,
 })
 
@@ -22,16 +27,119 @@ const STATUS_LABEL: Record<TaskStatus, string> = {
   completed: "Concluída",
 }
 
+type NoteBlock = Awaited<ReturnType<typeof getBlock>>
+
 function PopupEditor() {
-  const { block } = Route.useLoaderData()
-  const c = block.content as Record<string, unknown>
-  const [text, setText] = useState<string>((c.text as string) ?? "")
-  const [items, setItems] = useState<TodoItem[]>((c.items as TodoItem[]) ?? [])
+  const { blockId } = Route.useParams()
+  const [block, setBlock] = useState<NonNullable<NoteBlock> | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [authError, setAuthError] = useState(false)
+  const [textContent, setTextContent] = useState<TextBlockContent>(normalizeTextContent(""))
+  const [todoContent, setTodoContent] = useState<TodoBlockContent>({ items: [], anchor: { textBlockId: null, lineId: null } })
   const [hasChanges, setHasChanges] = useState(false)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const channelRef = useRef<BroadcastChannel | null>(null)
 
+  useEffect(() => {
+    async function load() {
+      const { session } = await getSession()
+      if (!session) {
+        setAuthError(true)
+        setLoading(false)
+        return
+      }
+      getBlock(blockId)
+        .then((b) => {
+          if (!b) { setLoading(false); return }
+          setBlock(b)
+          const c = b.content as Record<string, unknown>
+          setTextContent(normalizeTextContent((c.text as string) ?? "", (c.lines as TextBlockContent["lines"]) ?? []))
+          setTodoContent({
+            items: (c.items as TodoItem[]) ?? [],
+            anchor: (c.anchor as TodoBlockContent["anchor"]) ?? { textBlockId: null, lineId: null },
+          })
+          setLoading(false)
+        })
+        .catch(() => {
+          setLoading(false)
+          toast.error("Erro ao carregar o quadro.")
+        })
+    }
+    load()
+  }, [blockId])
+
+  useEffect(() => {
+    if (!block) return
+    const c = block.content as Record<string, unknown>
+    const blockType = block.type
+    const title =
+      blockType === "task_ref"
+        ? ((c.title as string) ?? "Tarefa")
+        : blockType === "todo"
+          ? "Lista"
+          : "Nota"
+    document.title = `${title} — Marco`
+    channelRef.current = new BroadcastChannel(BROADCAST_CHANNEL)
+    return () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current)
+      channelRef.current?.close()
+    }
+  }, [block])
+
+  function scheduleTextSave(content: TextBlockContent) {
+    if (!block) return
+    setHasChanges(true)
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => {
+      updateBlock(block.id, { content: content as never })
+        .then(() => {
+          channelRef.current?.postMessage({ blockId: block.id, type: "text", content })
+          setHasChanges(false)
+        })
+        .catch(() => toast.error("Erro ao salvar."))
+    }, 600)
+  }
+
+  function scheduleTodoSave(content: TodoBlockContent) {
+    if (!block) return
+    setHasChanges(true)
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => {
+      updateBlock(block.id, { content: content as never })
+        .then(() => {
+          channelRef.current?.postMessage({ blockId: block.id, type: "todo", content })
+          setHasChanges(false)
+        })
+        .catch(() => toast.error("Erro ao salvar."))
+    }, 800)
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background text-sm text-muted-foreground">
+        Carregando...
+      </div>
+    )
+  }
+
+  if (authError) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background text-sm text-muted-foreground">
+        Sessão expirada. Feche esta janela e faça login novamente.
+      </div>
+    )
+  }
+
+  if (!block) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background text-sm text-muted-foreground">
+        Quadro não encontrado.
+      </div>
+    )
+  }
+
   const blockType = block.type
+  const c = block.content as Record<string, unknown>
   const title =
     blockType === "task_ref"
       ? ((c.title as string) ?? "Tarefa")
@@ -40,35 +148,6 @@ function PopupEditor() {
         : "Nota"
   const TypeIcon =
     blockType === "text" ? FileText : blockType === "todo" ? CheckSquare : LinkIcon
-
-  useEffect(() => {
-    document.title = `${title} — Marco`
-    channelRef.current = new BroadcastChannel(BROADCAST_CHANNEL)
-    return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current)
-      channelRef.current?.close()
-    }
-  }, [title])
-
-  function scheduleTextSave(val: string) {
-    setHasChanges(true)
-    if (saveTimer.current) clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(() => {
-      updateBlock(block.id, { content: { text: val } }).catch(console.error)
-      channelRef.current?.postMessage({ blockId: block.id, type: "text", text: val })
-      setHasChanges(false)
-    }, 600)
-  }
-
-  function scheduleTodoSave(newItems: TodoItem[]) {
-    setHasChanges(true)
-    if (saveTimer.current) clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(() => {
-      updateBlock(block.id, { content: { items: newItems } }).catch(console.error)
-      channelRef.current?.postMessage({ blockId: block.id, type: "todo", items: newItems })
-      setHasChanges(false)
-    }, 800)
-  }
 
   return (
     <div className="flex h-screen flex-col bg-background text-foreground">
@@ -92,7 +171,7 @@ function PopupEditor() {
       <div className="flex-1 overflow-auto">
         {blockType === "text" && (
           <div className="relative h-full min-h-[320px]">
-            {text.length === 0 && (
+            {textContent.text.length === 0 && (
               <span
                 aria-hidden
                 className="pointer-events-none absolute left-5 top-4 select-none font-mono text-sm text-muted-foreground"
@@ -102,10 +181,11 @@ function PopupEditor() {
             )}
             <textarea
               autoFocus
-              value={text}
+              value={textContent.text}
               onChange={(e) => {
-                setText(e.target.value)
-                scheduleTextSave(e.target.value)
+                const nextContent = normalizeTextContent(e.target.value, textContent.lines)
+                setTextContent(nextContent)
+                scheduleTextSave(nextContent)
               }}
               className="absolute inset-0 h-full w-full resize-none bg-transparent px-5 py-4 font-mono text-sm leading-relaxed text-foreground focus:outline-none"
             />
@@ -114,25 +194,24 @@ function PopupEditor() {
 
         {blockType === "todo" && (
           <div className="flex flex-col gap-0.5 px-4 py-3">
-            {items.map((item) => (
+            {todoContent.items.map((item) => (
               <div
                 key={item.id}
                 className="group flex items-center gap-2 rounded px-2 py-1 hover:bg-muted/60"
               >
                 <button
                   onClick={() => {
-                    const next = items.map((i) =>
-                      i.id === item.id ? { ...i, checked: !i.checked } : i,
-                    )
-                    setItems(next)
+                    const nextItems = toggleTodoItemChecked(todoContent.items, item.id)
+                    const nextContent = { ...todoContent, items: nextItems }
+                    setTodoContent(nextContent)
                     if (item.task_id && item.task_type) {
                       updateTaskStatus(
                         item.task_id,
                         item.task_type,
                         !item.checked ? "completed" : "in_progress",
-                      ).catch(console.error)
+                      ).catch(() => toast.error("Erro ao atualizar status da tarefa."))
                     }
-                    scheduleTodoSave(next)
+                    scheduleTodoSave(nextContent)
                   }}
                   className="flex-shrink-0 text-muted-foreground hover:text-foreground"
                 >
@@ -156,11 +235,12 @@ function PopupEditor() {
                   type="text"
                   value={item.text}
                   onChange={(e) => {
-                    const next = items.map((i) =>
+                    const nextItems = todoContent.items.map((i) =>
                       i.id === item.id ? { ...i, text: e.target.value } : i,
                     )
-                    setItems(next)
-                    scheduleTodoSave(next)
+                    const nextContent = { ...todoContent, items: nextItems }
+                    setTodoContent(nextContent)
+                    scheduleTodoSave(nextContent)
                   }}
                   className={`flex-1 bg-transparent text-sm focus:outline-none ${
                     item.checked ? "text-muted-foreground line-through" : "text-foreground"
@@ -168,9 +248,9 @@ function PopupEditor() {
                 />
                 <button
                   onClick={() => {
-                    const next = items.filter((i) => i.id !== item.id)
-                    setItems(next)
-                    scheduleTodoSave(next)
+                    const nextContent = { ...todoContent, items: deleteTodoBranch(todoContent.items, item.id) }
+                    setTodoContent(nextContent)
+                    scheduleTodoSave(nextContent)
                   }}
                   className="hidden h-4 w-4 flex-shrink-0 items-center justify-center text-muted-foreground group-hover:flex hover:text-foreground"
                 >
@@ -180,12 +260,9 @@ function PopupEditor() {
             ))}
             <button
               onClick={() => {
-                const next: TodoItem[] = [
-                  ...items,
-                  { id: crypto.randomUUID(), text: "", checked: false, task_id: null, task_type: null },
-                ]
-                setItems(next)
-                scheduleTodoSave(next)
+                const nextContent = { ...todoContent, items: appendTodoItem(todoContent.items, null) }
+                setTodoContent(nextContent)
+                scheduleTodoSave(nextContent)
               }}
               className="mt-1 flex items-center gap-1.5 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground"
             >

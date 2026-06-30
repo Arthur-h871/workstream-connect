@@ -15,6 +15,7 @@ import { Route as CadastroRouteImport } from './routes/cadastro'
 import { Route as AguardandoRouteImport } from './routes/aguardando'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PopupBlockIdRouteImport } from './routes/popup.$blockId'
 import { Route as AuthenticatedTarefasOrgRouteImport } from './routes/_authenticated.tarefas-org'
 import { Route as AuthenticatedTarefasRouteImport } from './routes/_authenticated.tarefas'
 import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated.perfil'
@@ -22,7 +23,7 @@ import { Route as AuthenticatedNotasRouteImport } from './routes/_authenticated.
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated.dashboard'
 import { Route as AuthenticatedApontamentosRouteImport } from './routes/_authenticated.apontamentos'
 import { Route as AuthenticatedTarefasOrgProjectIdRouteImport } from './routes/_authenticated.tarefas-org_.$projectId'
-import { Route as AuthenticatedPopupBlockIdRouteImport } from './routes/_authenticated.popup.$blockId'
+import { Route as AuthenticatedSettingsDeveloperRouteImport } from './routes/_authenticated.settings.developer'
 import { Route as AuthenticatedAdminMembrosRouteImport } from './routes/_authenticated.admin.membros'
 
 const LoginRoute = LoginRouteImport.update({
@@ -52,6 +53,11 @@ const AuthenticatedRoute = AuthenticatedRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PopupBlockIdRoute = PopupBlockIdRouteImport.update({
+  id: '/popup/$blockId',
+  path: '/popup/$blockId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedTarefasOrgRoute = AuthenticatedTarefasOrgRouteImport.update({
@@ -91,10 +97,10 @@ const AuthenticatedTarefasOrgProjectIdRoute =
     path: '/tarefas-org/$projectId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedPopupBlockIdRoute =
-  AuthenticatedPopupBlockIdRouteImport.update({
-    id: '/popup/$blockId',
-    path: '/popup/$blockId',
+const AuthenticatedSettingsDeveloperRoute =
+  AuthenticatedSettingsDeveloperRouteImport.update({
+    id: '/settings/developer',
+    path: '/settings/developer',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedAdminMembrosRoute =
@@ -116,8 +122,9 @@ export interface FileRoutesByFullPath {
   '/perfil': typeof AuthenticatedPerfilRoute
   '/tarefas': typeof AuthenticatedTarefasRoute
   '/tarefas-org': typeof AuthenticatedTarefasOrgRoute
+  '/popup/$blockId': typeof PopupBlockIdRoute
   '/admin/membros': typeof AuthenticatedAdminMembrosRoute
-  '/popup/$blockId': typeof AuthenticatedPopupBlockIdRoute
+  '/settings/developer': typeof AuthenticatedSettingsDeveloperRoute
   '/tarefas-org/$projectId': typeof AuthenticatedTarefasOrgProjectIdRoute
 }
 export interface FileRoutesByTo {
@@ -132,8 +139,9 @@ export interface FileRoutesByTo {
   '/perfil': typeof AuthenticatedPerfilRoute
   '/tarefas': typeof AuthenticatedTarefasRoute
   '/tarefas-org': typeof AuthenticatedTarefasOrgRoute
+  '/popup/$blockId': typeof PopupBlockIdRoute
   '/admin/membros': typeof AuthenticatedAdminMembrosRoute
-  '/popup/$blockId': typeof AuthenticatedPopupBlockIdRoute
+  '/settings/developer': typeof AuthenticatedSettingsDeveloperRoute
   '/tarefas-org/$projectId': typeof AuthenticatedTarefasOrgProjectIdRoute
 }
 export interface FileRoutesById {
@@ -150,8 +158,9 @@ export interface FileRoutesById {
   '/_authenticated/perfil': typeof AuthenticatedPerfilRoute
   '/_authenticated/tarefas': typeof AuthenticatedTarefasRoute
   '/_authenticated/tarefas-org': typeof AuthenticatedTarefasOrgRoute
+  '/popup/$blockId': typeof PopupBlockIdRoute
   '/_authenticated/admin/membros': typeof AuthenticatedAdminMembrosRoute
-  '/_authenticated/popup/$blockId': typeof AuthenticatedPopupBlockIdRoute
+  '/_authenticated/settings/developer': typeof AuthenticatedSettingsDeveloperRoute
   '/_authenticated/tarefas-org_/$projectId': typeof AuthenticatedTarefasOrgProjectIdRoute
 }
 export interface FileRouteTypes {
@@ -168,8 +177,9 @@ export interface FileRouteTypes {
     | '/perfil'
     | '/tarefas'
     | '/tarefas-org'
-    | '/admin/membros'
     | '/popup/$blockId'
+    | '/admin/membros'
+    | '/settings/developer'
     | '/tarefas-org/$projectId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -184,8 +194,9 @@ export interface FileRouteTypes {
     | '/perfil'
     | '/tarefas'
     | '/tarefas-org'
-    | '/admin/membros'
     | '/popup/$blockId'
+    | '/admin/membros'
+    | '/settings/developer'
     | '/tarefas-org/$projectId'
   id:
     | '__root__'
@@ -201,8 +212,9 @@ export interface FileRouteTypes {
     | '/_authenticated/perfil'
     | '/_authenticated/tarefas'
     | '/_authenticated/tarefas-org'
+    | '/popup/$blockId'
     | '/_authenticated/admin/membros'
-    | '/_authenticated/popup/$blockId'
+    | '/_authenticated/settings/developer'
     | '/_authenticated/tarefas-org_/$projectId'
   fileRoutesById: FileRoutesById
 }
@@ -213,6 +225,7 @@ export interface RootRouteChildren {
   CadastroRoute: typeof CadastroRoute
   CadastroOrganizacaoRoute: typeof CadastroOrganizacaoRoute
   LoginRoute: typeof LoginRoute
+  PopupBlockIdRoute: typeof PopupBlockIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -257,6 +270,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/popup/$blockId': {
+      id: '/popup/$blockId'
+      path: '/popup/$blockId'
+      fullPath: '/popup/$blockId'
+      preLoaderRoute: typeof PopupBlockIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/tarefas-org': {
@@ -308,11 +328,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTarefasOrgProjectIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/popup/$blockId': {
-      id: '/_authenticated/popup/$blockId'
-      path: '/popup/$blockId'
-      fullPath: '/popup/$blockId'
-      preLoaderRoute: typeof AuthenticatedPopupBlockIdRouteImport
+    '/_authenticated/settings/developer': {
+      id: '/_authenticated/settings/developer'
+      path: '/settings/developer'
+      fullPath: '/settings/developer'
+      preLoaderRoute: typeof AuthenticatedSettingsDeveloperRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin/membros': {
@@ -333,7 +353,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedTarefasRoute: typeof AuthenticatedTarefasRoute
   AuthenticatedTarefasOrgRoute: typeof AuthenticatedTarefasOrgRoute
   AuthenticatedAdminMembrosRoute: typeof AuthenticatedAdminMembrosRoute
-  AuthenticatedPopupBlockIdRoute: typeof AuthenticatedPopupBlockIdRoute
+  AuthenticatedSettingsDeveloperRoute: typeof AuthenticatedSettingsDeveloperRoute
   AuthenticatedTarefasOrgProjectIdRoute: typeof AuthenticatedTarefasOrgProjectIdRoute
 }
 
@@ -345,7 +365,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedTarefasRoute: AuthenticatedTarefasRoute,
   AuthenticatedTarefasOrgRoute: AuthenticatedTarefasOrgRoute,
   AuthenticatedAdminMembrosRoute: AuthenticatedAdminMembrosRoute,
-  AuthenticatedPopupBlockIdRoute: AuthenticatedPopupBlockIdRoute,
+  AuthenticatedSettingsDeveloperRoute: AuthenticatedSettingsDeveloperRoute,
   AuthenticatedTarefasOrgProjectIdRoute: AuthenticatedTarefasOrgProjectIdRoute,
 }
 
@@ -360,6 +380,7 @@ const rootRouteChildren: RootRouteChildren = {
   CadastroRoute: CadastroRoute,
   CadastroOrganizacaoRoute: CadastroOrganizacaoRoute,
   LoginRoute: LoginRoute,
+  PopupBlockIdRoute: PopupBlockIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

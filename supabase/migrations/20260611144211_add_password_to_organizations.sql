@@ -1,0 +1,1 @@
+ALTER TABLE organizations ADD COLUMN password TEXT NOT NULL DEFAULT '';;

@@ -5,6 +5,7 @@ import { createOrganization } from "backend/api/services/organizations.service";
 import { getSession } from "backend/api/services/auth.service";
 
 export const Route = createFileRoute("/cadastro-organizacao")({
+  ssr: false,
   beforeLoad: async () => {
     const { session } = await getSession();
     if (session) throw redirect({ to: "/dashboard" });

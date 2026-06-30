@@ -127,6 +127,25 @@ export async function removeMember(memberId: string): Promise<void> {
   if (error) throw error;
 }
 
+export async function getMyPendingRequest(): Promise<{ orgName: string; orgId: string } | null> {
+  const { data, error } = await supabase.rpc("get_my_pending_request");
+  if (error || !data || data.length === 0) return null;
+  const row = data[0] as { org_name: string; org_id: string };
+  return { orgName: row.org_name, orgId: row.org_id };
+}
+
+export async function cancelMyMemberRequest(): Promise<{ error: string | null }> {
+  const { error } = await supabase.rpc("cancel_my_member_request");
+  if (error) return { error: error.message };
+  return { error: null };
+}
+
+export async function applyToOrg(orgCode: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.rpc("apply_to_org", { p_org_code: orgCode });
+  if (error) return { error: error.message };
+  return { error: null };
+}
+
 export async function createOrganization(
   data: CreateOrganizationData,
 ): Promise<CreateOrganizationResult> {

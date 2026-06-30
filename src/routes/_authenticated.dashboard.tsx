@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Play, Pause, Square, Trash2, GripVertical } from "lucide-react";
 import React, { useState, useEffect, useRef } from "react";
-import { AppShell } from "@/components/AppShell";
 import { getDashboardData, type DashboardData } from "backend/api/services/dashboard.service";
 import {
   getActiveSession,
@@ -15,7 +14,7 @@ import {
 } from "backend/api/services/sessions.service";
 import { DaemonDraftReview } from "@/components/DaemonDraftReview";
 
-const DAEMON_URL = "http://localhost:7432";
+const DAEMON_URL = import.meta.env.VITE_DAEMON_URL ?? "http://localhost:7432";
 
 type WatchedDir = { id: string; path: string; description: string };
 
@@ -25,8 +24,8 @@ function useDaemonStatus(): boolean {
 
   useEffect(() => {
     const probe = () =>
-      fetch(`${DAEMON_URL}/status`)
-        .then((r) => r.ok && setOnline(true))
+      fetch(`${DAEMON_URL}/status`, { signal: AbortSignal.timeout(3000) })
+        .then((r) => setOnline(r.ok))
         .catch(() => setOnline(false));
 
     probe();
@@ -49,14 +48,10 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   }),
   loader: async ({ context }) => {
     const { id: userId, organization_id: orgId } = context.profile;
-    const [session, data] = await Promise.all([getActiveSession(userId), getDashboardData(userId)]);
-    return { session, data, fullName: context.profile.full_name, userId, orgId };
+    const session = await getActiveSession(userId);
+    return { session, fullName: context.profile.full_name, userId, orgId };
   },
-  component: () => (
-    <AppShell>
-      <Dashboard />
-    </AppShell>
-  ),
+  component: Dashboard,
 });
 
 function NotesModal({
@@ -367,10 +362,35 @@ function Heatmap({ activeDays, streak }: { activeDays: string[]; streak: number 
 }
 
 function Dashboard() {
-  const { data, fullName, userId, orgId } = Route.useLoaderData();
+  const { fullName, userId, orgId } = Route.useLoaderData();
   const firstName = fullName.split(" ")[0];
   const [daemonDrafts, setDaemonDrafts] = useState<unknown[]>([]);
   const [stoppedSessionId, setStoppedSessionId] = useState<string>("");
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [isDataLoading, setIsDataLoading] = useState(true);
+  const [dataError, setDataError] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    setIsDataLoading(true);
+    setDataError(false);
+
+    getDashboardData(userId)
+      .then((result) => {
+        if (!cancelled) setData(result);
+      })
+      .catch(() => {
+        if (!cancelled) setDataError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setIsDataLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshKey, userId]);
 
   const now = new Date();
   const hour = now.getHours();
@@ -402,40 +422,56 @@ function Dashboard() {
           drafts={daemonDrafts}
           orgId={orgId}
           userId={userId}
-          onComplete={() => setDaemonDrafts([])}
+          onComplete={async () => {
+            setDaemonDrafts([]);
+            setRefreshKey((value) => value + 1);
+          }}
         />
       )}
 
       <div className="grid grid-cols-12 gap-6">
         <section className="col-span-12 rounded-lg border border-border bg-surface p-6 md:col-span-5">
-          <Heatmap activeDays={data.activeDays} streak={data.streak} />
+          <DashboardAsyncSection loading={isDataLoading} error={dataError}>
+            {data ? <Heatmap activeDays={data.activeDays} streak={data.streak} /> : null}
+          </DashboardAsyncSection>
         </section>
 
         <section className="col-span-12 grid grid-cols-2 gap-4 md:col-span-7">
-          <StatCard
-            label="Horas no mês"
-            value={formatHours(data.horasNoMes)}
-            sub={`${data.apontamentosNoMes} apontamento(s)`}
-            tone="copper"
-          />
-          <StatCard
-            label="Apontamentos"
-            value={String(data.apontamentosNoMes)}
-            sub={`${data.activeDays.length} dia(s) ativo(s)`}
-            tone="copper"
-          />
-          <StatCard
-            label="Tarefas concluídas"
-            value={String(data.tarefasConcluidas)}
-            sub="concluídas no total"
-            tone="teal"
-          />
-          <StatCard
-            label="Projetos ativos"
-            value={String(data.projetosAtivos)}
-            sub="com tarefas abertas"
-            tone="teal"
-          />
+          {isDataLoading || dataError || !data ? (
+            <>
+              <StatCardSkeleton />
+              <StatCardSkeleton />
+              <StatCardSkeleton />
+              <StatCardSkeleton />
+            </>
+          ) : (
+            <>
+              <StatCard
+                label="Horas no mês"
+                value={formatHours(data.horasNoMes)}
+                sub={`${data.apontamentosNoMes} apontamento(s)`}
+                tone="copper"
+              />
+              <StatCard
+                label="Apontamentos"
+                value={String(data.apontamentosNoMes)}
+                sub={`${data.activeDays.length} dia(s) ativo(s)`}
+                tone="copper"
+              />
+              <StatCard
+                label="Tarefas concluídas"
+                value={String(data.tarefasConcluidas)}
+                sub="concluídas no total"
+                tone="teal"
+              />
+              <StatCard
+                label="Projetos ativos"
+                value={String(data.projetosAtivos)}
+                sub="com tarefas abertas"
+                tone="teal"
+              />
+            </>
+          )}
         </section>
 
         <section className="col-span-12 md:col-span-7">
@@ -448,39 +484,41 @@ function Dashboard() {
               Ver todos →
             </Link>
           </div>
-          <div className="relative pl-6">
-            <div className="absolute bottom-2 left-2 top-2 w-px bg-border" />
-            <div className="space-y-3">
-              {data.recentApontamentos.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-border bg-surface px-4 py-8 text-center text-sm text-muted-foreground">
-                  Nenhum apontamento registrado
-                </div>
-              ) : (
-                data.recentApontamentos.map((r) => (
-                  <Link
-                    key={r.id}
-                    to="/apontamentos"
-                    className="relative block rounded-lg border border-border bg-surface p-4 transition-colors hover:border-copper/40"
-                  >
-                    <span className="absolute -left-[18px] top-5 h-2 w-2 rounded-full bg-copper ring-4 ring-background" />
-                    <div className="mb-1.5 flex items-center justify-between">
-                      <span className="text-xs font-semibold uppercase tracking-wide text-copper">
-                        {formatDate(r.date)}
-                      </span>
-                    </div>
-                    <p className="line-clamp-2 text-sm text-muted-foreground">{r.preview}</p>
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {r.done > 0 && <Chip color="success">{r.done} concluída(s)</Chip>}
-                      {r.doing > 0 && <Chip color="copper">{r.doing} em andamento</Chip>}
-                      {r.done === 0 && r.doing === 0 && (
-                        <Chip color="teal">sem tarefas vinculadas</Chip>
-                      )}
-                    </div>
-                  </Link>
-                ))
-              )}
+          <DashboardAsyncSection loading={isDataLoading} error={dataError}>
+            <div className="relative pl-6">
+              <div className="absolute bottom-2 left-2 top-2 w-px bg-border" />
+              <div className="space-y-3">
+                {data && data.recentApontamentos.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border bg-surface px-4 py-8 text-center text-sm text-muted-foreground">
+                    Nenhum apontamento registrado
+                  </div>
+                ) : (
+                  data?.recentApontamentos.map((r) => (
+                    <Link
+                      key={r.id}
+                      to="/apontamentos"
+                      className="relative block rounded-lg border border-border bg-surface p-4 transition-colors hover:border-copper/40"
+                    >
+                      <span className="absolute -left-[18px] top-5 h-2 w-2 rounded-full bg-copper ring-4 ring-background" />
+                      <div className="mb-1.5 flex items-center justify-between">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-copper">
+                          {formatDate(r.date)}
+                        </span>
+                      </div>
+                      <p className="line-clamp-2 text-sm text-muted-foreground">{r.preview}</p>
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {r.done > 0 && <Chip color="success">{r.done} concluída(s)</Chip>}
+                        {r.doing > 0 && <Chip color="copper">{r.doing} em andamento</Chip>}
+                        {r.done === 0 && r.doing === 0 && (
+                          <Chip color="teal">sem tarefas vinculadas</Chip>
+                        )}
+                      </div>
+                    </Link>
+                  ))
+                )}
+              </div>
             </div>
-          </div>
+          </DashboardAsyncSection>
         </section>
 
         <section className="col-span-12 space-y-8 md:col-span-5">
@@ -491,28 +529,30 @@ function Dashboard() {
                 Ver todas →
               </Link>
             </div>
-            <div className="space-y-2">
-              {data.priorityTasks.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-border bg-surface px-3 py-6 text-center text-xs text-muted-foreground">
-                  Nenhuma tarefa prioritária
-                </div>
-              ) : (
-                data.priorityTasks.map((t) => (
-                  <div
-                    key={t.id}
-                    className="group flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2.5"
-                  >
-                    <GripVertical className="h-4 w-4 text-muted-foreground/0 transition-opacity group-hover:text-muted-foreground" />
-                    <p className="flex-1 truncate text-sm">{t.title}</p>
-                    {t.due_date && (
-                      <span className="rounded bg-copper-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-copper">
-                        {formatDue(t.due_date)}
-                      </span>
-                    )}
+            <DashboardAsyncSection loading={isDataLoading} error={dataError}>
+              <div className="space-y-2">
+                {data && data.priorityTasks.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border bg-surface px-3 py-6 text-center text-xs text-muted-foreground">
+                    Nenhuma tarefa prioritária
                   </div>
-                ))
-              )}
-            </div>
+                ) : (
+                  data?.priorityTasks.map((t) => (
+                    <div
+                      key={t.id}
+                      className="group flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2.5"
+                    >
+                      <GripVertical className="h-4 w-4 text-muted-foreground/0 transition-opacity group-hover:text-muted-foreground" />
+                      <p className="flex-1 truncate text-sm">{t.title}</p>
+                      {t.due_date && (
+                        <span className="rounded bg-copper-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-copper">
+                          {formatDue(t.due_date)}
+                        </span>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </DashboardAsyncSection>
           </div>
 
           <div>
@@ -525,35 +565,75 @@ function Dashboard() {
                 Ver →
               </Link>
             </div>
-            <div className="space-y-2">
-              {data.orgDeadlines.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-border bg-surface px-3 py-6 text-center text-xs text-muted-foreground">
-                  Nenhum prazo próximo
-                </div>
-              ) : (
-                data.orgDeadlines.map((t) => (
-                  <div
-                    key={t.id}
-                    className="flex items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm">{t.title}</p>
-                      <p className="truncate text-xs text-teal">{t.project}</p>
-                    </div>
-                    <span
-                      className={`shrink-0 font-mono text-xs ${
-                        t.days < 0 ? "text-destructive" : "text-muted-foreground"
-                      }`}
-                    >
-                      {t.days < 0 ? `${Math.abs(t.days)}d atrasada` : `${t.days}d`}
-                    </span>
+            <DashboardAsyncSection loading={isDataLoading} error={dataError}>
+              <div className="space-y-2">
+                {data && data.orgDeadlines.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border bg-surface px-3 py-6 text-center text-xs text-muted-foreground">
+                    Nenhum prazo próximo
                   </div>
-                ))
-              )}
-            </div>
+                ) : (
+                  data?.orgDeadlines.map((t) => (
+                    <div
+                      key={t.id}
+                      className="flex items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm">{t.title}</p>
+                        <p className="truncate text-xs text-teal">{t.project}</p>
+                      </div>
+                      <span
+                        className={`shrink-0 font-mono text-xs ${
+                          t.days < 0 ? "text-destructive" : "text-muted-foreground"
+                        }`}
+                      >
+                        {t.days < 0 ? `${Math.abs(t.days)}d atrasada` : `${t.days}d`}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </DashboardAsyncSection>
           </div>
         </section>
       </div>
+    </div>
+  );
+}
+
+function DashboardAsyncSection({
+  children,
+  loading,
+  error,
+}: {
+  children: React.ReactNode;
+  loading: boolean;
+  error: boolean;
+}) {
+  if (loading) {
+    return (
+      <div className="rounded-lg border border-dashed border-border bg-surface px-4 py-8 text-center text-sm text-muted-foreground">
+        Carregando dados...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-lg border border-dashed border-border bg-surface px-4 py-8 text-center text-sm text-muted-foreground">
+        Não foi possível carregar este bloco agora.
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
+
+function StatCardSkeleton() {
+  return (
+    <div className="rounded-lg border border-border bg-surface p-5">
+      <div className="h-3 w-24 rounded bg-border" />
+      <div className="mt-4 h-8 w-16 rounded bg-border" />
+      <div className="mt-1 h-3 w-28 rounded bg-border" />
     </div>
   );
 }
@@ -627,6 +707,3 @@ function formatDue(dateStr: string): string {
     month: "short",
   }).format(new Date(year, month - 1, day));
 }
-
-// Needed to avoid unused import warning for DashboardData
-type _DashboardData = DashboardData;

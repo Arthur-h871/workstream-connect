@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Plus, Circle, CheckCircle2, Trash2, X, Search } from "lucide-react";
+import { toast } from "sonner";
 import { useState, useRef, useEffect } from "react";
-import { AppShell } from "@/components/AppShell";
 import {
-  getApontamentos,
+  getApontamentoById,
+  getApontamentoSummaries,
   createApontamento,
   updateApontamento,
   deleteApontamento,
@@ -12,6 +13,7 @@ import {
   updateLinkedTaskStatus,
   unlinkTask,
   type Apontamento,
+  type ApontamentoSummary,
   type LinkedTask,
 } from "backend/api/services/apontamentos.service";
 import { getPersonalTasks, type PersonalTask } from "backend/api/services/tarefas.service";
@@ -33,7 +35,7 @@ export const Route = createFileRoute("/_authenticated/apontamentos")({
     ],
   }),
   loader: async ({ context }) => {
-    const apontamentos = await getApontamentos(context.profile.id);
+    const apontamentos = await getApontamentoSummaries(context.profile.id);
     return {
       apontamentos,
       userId: context.profile.id,
@@ -45,10 +47,40 @@ export const Route = createFileRoute("/_authenticated/apontamentos")({
 
 function ApontamentosPage() {
   const { apontamentos: initial, userId, orgId } = Route.useLoaderData();
-  const [items, setItems] = useState<Apontamento[]>(initial);
+  const [items, setItems] = useState<ApontamentoSummary[]>(initial);
   const [selectedId, setSelectedId] = useState<string | null>(initial[0]?.id ?? null);
+  const [detailsById, setDetailsById] = useState<Record<string, Apontamento>>({});
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState(false);
 
-  const selected = items.find((a) => a.id === selectedId) ?? null;
+  const selected = selectedId ? detailsById[selectedId] ?? null : null;
+
+  useEffect(() => {
+    if (!selectedId || detailsById[selectedId]) return;
+
+    let cancelled = false;
+    setDetailLoading(true);
+    setDetailError(false);
+
+    getApontamentoById(selectedId)
+      .then((apontamento) => {
+        if (!apontamento || cancelled) {
+          if (!cancelled) setDetailError(true);
+          return;
+        }
+        setDetailsById((current) => ({ ...current, [selectedId]: apontamento }));
+      })
+      .catch(() => {
+        if (!cancelled) setDetailError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setDetailLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [detailsById, selectedId]);
 
   async function handleCreate() {
     try {
@@ -59,28 +91,59 @@ function ApontamentosPage() {
         content: "",
         hours_worked: 0.25,
       });
-      setItems((prev) => [novo, ...prev]);
+      setItems((prev) => [toSummary(novo), ...prev]);
+      setDetailsById((current) => ({ ...current, [novo.id]: novo }));
       setSelectedId(novo.id);
     } catch {
-      // silently ignore — user sees no new item appear
+      toast.error("Erro ao criar apontamento.");
     }
   }
 
   function handleUpdate(id: string, fields: Partial<Apontamento>) {
-    setItems((prev) => prev.map((a) => (a.id === id ? { ...a, ...fields } : a)));
+    setItems((prev) =>
+      prev.map((apontamento) =>
+        apontamento.id === id
+          ? {
+              ...apontamento,
+              ...(fields.content !== undefined ? { content: fields.content } : {}),
+              ...(fields.hours_worked !== undefined ? { hours_worked: fields.hours_worked } : {}),
+              ...(fields.date !== undefined ? { date: fields.date } : {}),
+            }
+          : apontamento,
+      ),
+    );
+    setDetailsById((current) => {
+      const previous = current[id];
+      if (!previous) return current;
+      return {
+        ...current,
+        [id]: {
+          ...previous,
+          ...fields,
+        },
+      };
+    });
   }
 
   async function handleDelete(id: string) {
-    const remaining = items.filter((a) => a.id !== id);
-    setItems(remaining);
-    if (selectedId === id) setSelectedId(remaining[0]?.id ?? null);
-    await deleteApontamento(id);
+    try {
+      await deleteApontamento(id);
+      const remaining = items.filter((a) => a.id !== id);
+      setItems(remaining);
+      setDetailsById((current) => {
+        const next = { ...current };
+        delete next[id];
+        return next;
+      });
+      if (selectedId === id) setSelectedId(remaining[0]?.id ?? null);
+    } catch {
+      toast.error("Erro ao excluir apontamento.");
+    }
   }
 
   return (
-    <AppShell>
-      <div className="-mx-8 -my-8 flex h-screen bg-background">
-        <aside className="flex w-[300px] shrink-0 flex-col border-r border-border">
+    <div className="-mx-8 -my-8 flex h-screen bg-background">
+      <aside className="flex w-[300px] shrink-0 flex-col border-r border-border">
           <div className="flex items-center justify-between border-b border-border px-5 py-4">
             <h1 className="text-base font-semibold">Apontamentos</h1>
             <button
@@ -136,26 +199,45 @@ function ApontamentosPage() {
               </div>
             )}
           </div>
-        </aside>
+      </aside>
 
-        <div className="relative flex-1 overflow-y-auto p-8">
-          {!selected ? (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              Selecione um apontamento ou crie um novo
-            </div>
-          ) : (
-            <ApontamentoDetail
-              key={selected.id}
-              apontamento={selected}
-              userId={userId}
-              onUpdate={handleUpdate}
-              onDelete={handleDelete}
-            />
-          )}
-        </div>
+      <div className="relative flex-1 overflow-y-auto p-8">
+        {!selectedId ? (
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+            Selecione um apontamento ou crie um novo
+          </div>
+        ) : detailLoading ? (
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+            Carregando apontamento...
+          </div>
+        ) : detailError || !selected ? (
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+            Não foi possível carregar os detalhes deste apontamento.
+          </div>
+        ) : (
+          <ApontamentoDetail
+            key={selected.id}
+            apontamento={selected}
+            userId={userId}
+            onUpdate={handleUpdate}
+            onDelete={handleDelete}
+          />
+        )}
       </div>
-    </AppShell>
+    </div>
   );
+}
+
+function toSummary(apontamento: Apontamento): ApontamentoSummary {
+  return {
+    id: apontamento.id,
+    date: apontamento.date,
+    content: apontamento.content,
+    hours_worked: apontamento.hours_worked,
+    created_at: apontamento.created_at,
+    session_id: apontamento.session_id,
+    screenshot_count: apontamento.screenshot_count,
+  };
 }
 
 function ApontamentoDetail({
@@ -180,51 +262,72 @@ function ApontamentoDetail({
       setScreenshots([]);
       return;
     }
+    let cancelled = false;
     setScreenshotsLoading(true);
     getScreenshots(apontamento.session_id)
-      .then((data) => setScreenshots(data))
-      .finally(() => setScreenshotsLoading(false));
+      .then((data) => { if (!cancelled) setScreenshots(data); })
+      .catch(() => { if (!cancelled) setScreenshots([]); })
+      .finally(() => { if (!cancelled) setScreenshotsLoading(false); });
+    return () => { cancelled = true; };
   }, [apontamento.session_id]);
 
   async function handleSoftDelete(screenshotId: string) {
-    await softDeleteScreenshot(screenshotId);
-    setScreenshots((prev) => prev.filter((s) => s.id !== screenshotId));
+    try {
+      await softDeleteScreenshot(screenshotId);
+      setScreenshots((prev) => prev.filter((s) => s.id !== screenshotId));
+    } catch {
+      toast.error("Erro ao excluir print.");
+    }
   }
 
   function handleContentChange(value: string) {
     onUpdate(apontamento.id, { content: value });
     if (contentTimer.current) clearTimeout(contentTimer.current);
-    contentTimer.current = setTimeout(
-      () => updateApontamento(apontamento.id, { content: value }),
-      800,
-    );
+    contentTimer.current = setTimeout(() => {
+      updateApontamento(apontamento.id, { content: value }).catch(() =>
+        toast.error("Erro ao salvar conteúdo."),
+      );
+    }, 800);
   }
 
   function handleHoursChange(value: string) {
     const hours = parseFloat(value) || 0;
     onUpdate(apontamento.id, { hours_worked: hours });
     if (hoursTimer.current) clearTimeout(hoursTimer.current);
-    hoursTimer.current = setTimeout(
-      () => updateApontamento(apontamento.id, { hours_worked: hours }),
-      800,
-    );
+    hoursTimer.current = setTimeout(() => {
+      updateApontamento(apontamento.id, { hours_worked: hours }).catch(() =>
+        toast.error("Erro ao salvar horas."),
+      );
+    }, 800);
   }
 
   async function handleToggleStatus(task: LinkedTask) {
     const newStatus = task.status === "concluded" ? "started" : "concluded";
+    const previousLinkedTasks = apontamento.linked_tasks;
     onUpdate(apontamento.id, {
       linked_tasks: apontamento.linked_tasks.map((t) =>
         t.link_id === task.link_id ? { ...t, status: newStatus } : t,
       ),
     });
-    await updateLinkedTaskStatus(task.link_id, task.type, newStatus, task.task_id);
+    try {
+      await updateLinkedTaskStatus(task.link_id, task.type, newStatus, task.task_id);
+    } catch {
+      onUpdate(apontamento.id, { linked_tasks: previousLinkedTasks });
+      toast.error("Erro ao atualizar status da tarefa.");
+    }
   }
 
   async function handleUnlink(task: LinkedTask) {
+    const previousLinkedTasks = apontamento.linked_tasks;
     onUpdate(apontamento.id, {
       linked_tasks: apontamento.linked_tasks.filter((t) => t.link_id !== task.link_id),
     });
-    await unlinkTask(task.link_id, task.type);
+    try {
+      await unlinkTask(task.link_id, task.type);
+    } catch {
+      onUpdate(apontamento.id, { linked_tasks: previousLinkedTasks });
+      toast.error("Erro ao desvincular tarefa.");
+    }
   }
 
   function handleAdd(newLinks: LinkedTask[]) {
@@ -403,19 +506,23 @@ function AddTaskModal({
     if (selected.size === 0 || saving) return;
     setSaving(true);
 
-    const results: LinkedTask[] = [];
-    await Promise.all(
-      Array.from(selected.entries()).map(async ([taskId, type]) => {
-        const link =
-          type === "personal"
-            ? await linkPersonalTask(apontamentoId, taskId)
-            : await linkOrgTask(apontamentoId, taskId);
-        if (link) results.push(link);
-      }),
-    );
-
-    onAdd(results);
-    onClose();
+    try {
+      const results: LinkedTask[] = [];
+      await Promise.all(
+        Array.from(selected.entries()).map(async ([taskId, type]) => {
+          const link =
+            type === "personal"
+              ? await linkPersonalTask(apontamentoId, taskId)
+              : await linkOrgTask(apontamentoId, taskId);
+          if (link) results.push(link);
+        }),
+      );
+      onAdd(results);
+      onClose();
+    } catch {
+      toast.error("Erro ao vincular tarefa.");
+      setSaving(false);
+    }
   }
 
   return (

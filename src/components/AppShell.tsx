@@ -1,4 +1,5 @@
-import { Link, useRouterState, useNavigate, useRouteContext } from "@tanstack/react-router";
+import { Link, useMatches, useNavigate, useRouterState } from "@tanstack/react-router";
+import { toast } from "sonner";
 import {
   LayoutDashboard,
   FileText,
@@ -21,6 +22,7 @@ import {
   subscribeToNotifications,
   type Notification,
 } from "backend/api/services/notifications.service";
+import { useProfile } from "@/lib/authenticated-profile-context";
 
 type NavItem = { to: string; label: string; icon: LucideIcon; admin?: boolean };
 
@@ -48,7 +50,7 @@ function formatTimeAgo(isoStr: string): string {
 }
 
 function NotificationBell() {
-  const { profile } = useRouteContext({ from: "/_authenticated" });
+  const { profile } = useProfile();
   const userId = profile.id;
 
   const [open, setOpen] = useState(false);
@@ -57,10 +59,10 @@ function NotificationBell() {
 
   useEffect(() => {
     setLoading(true);
-    getNotifications(userId).then((data) => {
-      setNotifications(data);
-      setLoading(false);
-    });
+    getNotifications(userId)
+      .then((data) => setNotifications(data))
+      .catch(() => toast.error("Erro ao carregar notificações."))
+      .finally(() => setLoading(false));
   }, [userId]);
 
   useEffect(() => {
@@ -72,16 +74,34 @@ function NotificationBell() {
   const unreadCount = notifications.filter((n) => !n.read_at).length;
 
   async function handleMarkRead(id: string) {
+    const optimisticReadAt = new Date().toISOString();
     setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read_at: new Date().toISOString() } : n)),
+      prev.map((n) => (n.id === id ? { ...n, read_at: optimisticReadAt } : n)),
     );
-    await markAsRead(id);
+    try {
+      await markAsRead(id);
+    } catch {
+      setNotifications((prev) =>
+        prev.map((n) =>
+          n.id === id && n.read_at === optimisticReadAt ? { ...n, read_at: undefined } : n,
+        ),
+      );
+    }
   }
 
   async function handleMarkAllRead() {
-    const now = new Date().toISOString();
-    setNotifications((prev) => prev.map((n) => ({ ...n, read_at: n.read_at ?? now })));
-    await markAllAsRead(userId);
+    const optimisticReadAt = new Date().toISOString();
+    setNotifications((prev) =>
+      prev.map((n) => ({ ...n, read_at: n.read_at ?? optimisticReadAt })),
+    );
+    try {
+      await markAllAsRead(userId);
+    } catch {
+      setNotifications((prev) =>
+        prev.map((n) => (n.read_at === optimisticReadAt ? { ...n, read_at: undefined } : n)),
+      );
+      toast.error("Erro ao marcar notificações como lidas.");
+    }
   }
 
   return (
@@ -162,7 +182,7 @@ function NotificationBell() {
 }
 
 function SidebarUser({ onLogout }: { onLogout: () => void }) {
-  const { profile } = useRouteContext({ from: "/_authenticated" });
+  const { profile } = useProfile();
 
   const initials = profile.full_name
     .trim()
@@ -207,10 +227,49 @@ function SidebarUser({ onLogout }: { onLogout: () => void }) {
   );
 }
 
-export function AppShell({ children, title }: { children: ReactNode; title?: string }) {
+type AppShellStaticData = {
+  shellTitle?: string;
+  shellVariant?: "default" | "immersive";
+};
+
+function PendingIndicator() {
+  const isPending = useRouterState({
+    select: (state) => state.isLoading || state.isTransitioning || state.status === "pending",
+  });
+
+  if (!isPending) return null;
+
+  return (
+    <div className="pointer-events-none absolute inset-x-0 top-0 z-40 h-1 overflow-hidden rounded-full bg-copper/10">
+      <div className="h-full w-1/3 animate-[pulse_900ms_ease-in-out_infinite] rounded-full bg-copper" />
+    </div>
+  );
+}
+
+export function AppShell({ children }: { children: ReactNode }) {
   const location = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
-  const { profile } = useRouteContext({ from: "/_authenticated" });
+  const { profile } = useProfile();
+  const shellVariant = useMatches({
+    select: (matches) => {
+      for (let index = matches.length - 1; index >= 0; index -= 1) {
+        const variant = (matches[index].staticData as AppShellStaticData | undefined)?.shellVariant;
+        if (variant) return variant;
+      }
+      return "default" as const;
+    },
+  });
+  const shellTitle = useMatches({
+    select: (matches) => {
+      for (let index = matches.length - 1; index >= 0; index -= 1) {
+        const title = (matches[index].staticData as AppShellStaticData | undefined)?.shellTitle;
+        if (title) return title;
+      }
+      return undefined;
+    },
+  });
+  const isImmersive = shellVariant === "immersive";
+  const notificationBell = <NotificationBell />;
 
   const visibleNav = navItems.filter((item) => !item.admin || profile.role !== "tenant_user");
 
@@ -237,6 +296,7 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
               <Link
                 key={item.to}
                 to={item.to}
+                preload="intent"
                 className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
                   active
                     ? "bg-copper-soft text-copper"
@@ -261,15 +321,29 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
       </aside>
 
       <main className="ml-60 flex-1">
-        <div className="relative mx-auto max-w-[1400px] px-8 py-8">
-          {title && (
+        <div
+          className={
+            isImmersive
+              ? "relative h-screen w-full overflow-hidden"
+              : "relative mx-auto max-w-[1400px] px-8 py-8"
+          }
+        >
+          <PendingIndicator />
+          {!isImmersive && (
             <div className="mb-8 flex items-center justify-between">
-              <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-              <div className="relative">
-                <NotificationBell />
-              </div>
+              {shellTitle ? (
+                <h1 className="text-2xl font-semibold tracking-tight">{shellTitle}</h1>
+              ) : (
+                <div />
+              )}
+              <div className="relative">{notificationBell}</div>
             </div>
           )}
+          {isImmersive ? (
+            <div className="pointer-events-none fixed right-6 top-6 z-40">
+              <div className="pointer-events-auto relative">{notificationBell}</div>
+            </div>
+          ) : null}
           {children}
         </div>
       </main>

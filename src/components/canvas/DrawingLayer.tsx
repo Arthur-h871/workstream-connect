@@ -11,13 +11,14 @@ export type DrawingPath = {
 type Props = {
   drawings: DrawingPath[]
   isDrawing: boolean
+  isErasing: boolean
   color: string
   strokeWidth: number
   onPathComplete: (pathData: string) => void
   onPathDelete: (pathId: string) => void
 }
 
-export function DrawingLayer({ drawings, isDrawing, color, strokeWidth, onPathComplete, onPathDelete }: Props) {
+export function DrawingLayer({ drawings, isDrawing, isErasing, color, strokeWidth, onPathComplete, onPathDelete }: Props) {
   const [currentPath, setCurrentPath] = useState<string | null>(null)
   const isPointerDown = useRef(false)
   const pathPoints = useRef<string[]>([])
@@ -35,6 +36,11 @@ export function DrawingLayer({ drawings, isDrawing, color, strokeWidth, onPathCo
   }
 
   function handleMouseDown(e: React.MouseEvent<SVGSVGElement>) {
+    if (isErasing) {
+      e.preventDefault()
+      isPointerDown.current = true
+      return
+    }
     if (!isDrawing) return
     e.preventDefault()
     const pt = getSVGPoint(e)
@@ -53,8 +59,10 @@ export function DrawingLayer({ drawings, isDrawing, color, strokeWidth, onPathCo
   }
 
   function handleMouseUp() {
-    if (!isPointerDown.current || !isDrawing) return
+    if (!isPointerDown.current) return
     isPointerDown.current = false
+    if (isErasing) return
+    if (!isDrawing) return
     const pathData = pathPoints.current.join(" ")
     if (pathPoints.current.length > 1) {
       onPathComplete(pathData)
@@ -63,10 +71,16 @@ export function DrawingLayer({ drawings, isDrawing, color, strokeWidth, onPathCo
     pathPoints.current = []
   }
 
+  const interactive = isDrawing || isErasing
+
   return (
     <svg
       ref={svgRef}
-      className={`absolute inset-0 h-full w-full ${isDrawing ? "cursor-crosshair z-10" : "pointer-events-none z-0"}`}
+      className={`absolute inset-0 h-full w-full ${
+        interactive
+          ? `z-10 ${isErasing ? "cursor-cell" : "cursor-crosshair"}`
+          : "pointer-events-none z-0"
+      }`}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
@@ -82,8 +96,9 @@ export function DrawingLayer({ drawings, isDrawing, color, strokeWidth, onPathCo
             fill="none"
             strokeLinecap="round"
             strokeLinejoin="round"
-            className={isDrawing ? "cursor-crosshair" : "cursor-pointer hover:opacity-50"}
-            onClick={isDrawing ? undefined : () => onPathDelete(d.id)}
+            className={isErasing ? "cursor-cell hover:opacity-30" : ""}
+            onClick={isErasing ? () => onPathDelete(d.id) : undefined}
+            onMouseEnter={isErasing ? () => { if (isPointerDown.current) onPathDelete(d.id) } : undefined}
           />
         ))}
         {currentPath && (

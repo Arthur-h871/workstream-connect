@@ -84,4 +84,4 @@ CREATE POLICY "owner_select" ON note_drawings FOR SELECT
 CREATE POLICY "owner_insert" ON note_drawings FOR INSERT
   WITH CHECK (canvas_id IN (SELECT id FROM note_canvases WHERE user_id = auth.uid()));
 CREATE POLICY "owner_delete" ON note_drawings FOR DELETE
-  USING (canvas_id IN (SELECT id FROM note_canvases WHERE user_id = auth.uid()));
+  USING (canvas_id IN (SELECT id FROM note_canvases WHERE user_id = auth.uid()));;

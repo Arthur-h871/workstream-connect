@@ -1,100 +1,78 @@
-import { memo, useState, useRef, useCallback, useEffect, ChangeEvent } from "react"
-import { Handle, Position, NodeResizer, type NodeProps } from "@xyflow/react"
-import { X, Maximize2 } from "lucide-react"
-import { useRouteContext } from "@tanstack/react-router"
-import { searchTasksForMention } from "backend/api/services/notes.service"
-import { TaskMentionDropdown } from "@/components/canvas/TaskMentionDropdown"
+import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { NodeResizer, type NodeProps } from "@xyflow/react";
+import { Maximize2, Plus, X } from "lucide-react";
+import { CanvasConnectionHandles } from "@/components/canvas/CanvasConnectionHandles";
+import {
+  normalizeTextContent,
+  removeDeletedLineAnchors,
+  type TextBlockContent,
+  type TextLine,
+} from "@/lib/notes-model";
+
+const ANCHOR_PLACEHOLDER_HEIGHT = 144;
 
 export type TextNodeData = {
-  label: string
-  onDelete: (id: string) => void
-  onUpdate: (id: string, text: string) => void
-  onOpenPopup: (id: string) => void
+  content: TextBlockContent;
+  onDelete: (id: string) => void;
+  onUpdate: (id: string, content: TextBlockContent, detachedTodoIds: string[]) => void;
+  onOpenPopup: (id: string) => void;
+  onResizeEnd: (id: string, width: number, height: number) => void;
+};
+
+function joinLines(lines: TextLine[]) {
+  return lines.map((line) => line.text).join("\n");
 }
 
-type TaskResult = { id: string; title: string; type: "personal" | "org" }
-
 export const TextNoteNode = memo(function TextNoteNode({ id, data, selected }: NodeProps) {
-  // NodeProps generic constraint requires Record<string,unknown> index sig; cast instead
-  const typedData = data as unknown as TextNodeData
-  const { profile } = useRouteContext({ from: "/_authenticated" })
-  const [text, setText] = useState(typedData.label)
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const onUpdateRef = useRef(typedData.onUpdate)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-
-  const [mentionQuery, setMentionQuery] = useState<string | null>(null)
-  const [mentionResults, setMentionResults] = useState<TaskResult[]>([])
-  const [mentionLoading, setMentionLoading] = useState(false)
+  const typedData = data as unknown as TextNodeData;
+  const [lines, setLines] = useState<TextLine[]>(typedData.content.lines);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    onUpdateRef.current = typedData.onUpdate
-  })
+    setLines(typedData.content.lines.length > 0 ? typedData.content.lines : normalizeTextContent("").lines);
+  }, [typedData.content]);
 
-  // Sync external label changes (e.g. after reload)
-  useEffect(() => {
-    setText(typedData.label)
-  }, [typedData.label])
-
-  // Clear pending save on unmount
   useEffect(() => {
     return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current)
-    }
-  }, [])
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+  }, []);
 
-  useEffect(() => {
-    if (mentionQuery === null) { setMentionResults([]); return }
-    setMentionLoading(true)
-    const t = setTimeout(async () => {
-      const results = await searchTasksForMention(profile.id, profile.organization_id ?? "", mentionQuery)
-      setMentionResults(results)
-      setMentionLoading(false)
-    }, 200)
-    return () => clearTimeout(t)
-  }, [mentionQuery, profile.id, profile.organization_id])
+  const placeholderCount = useMemo(
+    () => lines.filter((line) => line.anchorTodoBlockId).length,
+    [lines],
+  );
 
-  const handleChange = useCallback(
-    (e: ChangeEvent<HTMLTextAreaElement>) => {
-      const val = e.target.value
-      setText(val)
-      const cursorPos = e.target.selectionStart ?? val.length
-      const textBeforeCursor = val.slice(0, cursorPos)
-      const mentionMatch = textBeforeCursor.match(/\/\/(\w*)$/)
-      if (mentionMatch) {
-        setMentionQuery(mentionMatch[1])
-      } else {
-        setMentionQuery(null)
-      }
-      if (saveTimer.current) clearTimeout(saveTimer.current)
-      saveTimer.current = setTimeout(() => {
-        onUpdateRef.current(id, val)
-      }, 600)
-    },
-    [id],
-  )
+  function persist(nextLines: TextLine[]) {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      const normalized = normalizeTextContent(joinLines(nextLines), nextLines);
+      const cleanup = removeDeletedLineAnchors(lines, normalized.lines);
+      typedData.onUpdate(id, normalized, cleanup.detachedTodoIds);
+    }, 250);
+  }
 
-  const handleMentionSelect = useCallback(
-    (item: TaskResult) => {
-      const token = `[[@task:${item.id}:${item.title}]]`
-      const cursorPos = textareaRef.current?.selectionStart ?? text.length
-      const before = text.slice(0, cursorPos).replace(/\/\/\w*$/, token)
-      const after = text.slice(cursorPos)
-      const newText = before + after
-      setText(newText)
-      setMentionQuery(null)
-      onUpdateRef.current(id, newText)
-    },
-    [id, text],
-  )
+  function updateLines(nextLines: TextLine[]) {
+    setLines(nextLines);
+    persist(nextLines);
+  }
 
   return (
-    <div className={`flex flex-col rounded-lg border bg-surface shadow-sm h-full w-full ${selected ? "border-copper" : "border-border"}`}>
-      <NodeResizer minWidth={180} minHeight={120} isVisible={selected} />
-      <Handle type="target" position={Position.Left} className="opacity-0 hover:opacity-100" />
-      <Handle type="source" position={Position.Right} className="opacity-0 hover:opacity-100" />
+    <div
+      className={`flex h-full w-full flex-col rounded-lg border bg-surface shadow-sm ${
+        selected ? "border-copper" : "border-border"
+      }`}
+    >
+      <NodeResizer
+        minWidth={220}
+        minHeight={140}
+        isVisible={selected}
+        onResizeEnd={(_, params) => typedData.onResizeEnd(id, params.width, params.height)}
+      />
+      <CanvasConnectionHandles nodeId={id} />
+
       <div className="flex items-center justify-between border-b border-border px-3 py-1.5 cursor-grab active:cursor-grabbing">
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground select-none">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
           Nota
         </span>
         <div className="flex items-center gap-0.5">
@@ -112,27 +90,56 @@ export const TextNoteNode = memo(function TextNoteNode({ id, data, selected }: N
           </button>
         </div>
       </div>
-      <div className="relative flex-1">
-        {text.length === 0 && (
-          <span aria-hidden className="pointer-events-none absolute left-3 top-2 text-sm text-muted-foreground select-none">
-            Escreva aqui...
-          </span>
-        )}
-        <textarea
-          ref={textareaRef}
-          className="nopan nodrag absolute inset-0 resize-none bg-transparent px-3 py-2 text-sm text-foreground focus:outline-none"
-          value={text}
-          onChange={handleChange}
-        />
-        {mentionQuery !== null && (
-          <TaskMentionDropdown
-            results={mentionResults}
-            loading={mentionLoading}
-            onSelect={handleMentionSelect}
-            onClose={() => setMentionQuery(null)}
-          />
-        )}
+
+      <div className="nopan nodrag flex-1 overflow-auto px-3 py-2">
+        {lines.map((line, index) => (
+          <div key={line.id} className="mb-1 rounded-md border border-transparent hover:border-border/60">
+            <input
+              value={line.text}
+              onChange={(event) => {
+                const nextLines = lines.map((entry) =>
+                  entry.id === line.id ? { ...entry, text: event.target.value } : entry,
+                );
+                updateLines(nextLines);
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter") return;
+                event.preventDefault();
+                const nextLine: TextLine = { id: crypto.randomUUID(), text: "" };
+                const nextLines = [...lines.slice(0, index + 1), nextLine, ...lines.slice(index + 1)];
+                updateLines(nextLines);
+              }}
+              className="w-full rounded bg-transparent px-1 py-1 text-sm text-foreground outline-none"
+              placeholder={index === 0 ? "Escreva aqui..." : ""}
+            />
+            {line.anchorTodoBlockId && (
+              <div
+                data-note-line-id={line.id}
+                className="mt-1 rounded-xl border border-dashed border-copper/50 bg-copper-soft/20"
+                style={{ height: ANCHOR_PLACEHOLDER_HEIGHT }}
+              >
+                <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+                  Todo list ancorada nesta linha
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+
+        <button
+          onClick={() => updateLines([...lines, { id: crypto.randomUUID(), text: "" }])}
+          className="mt-2 flex items-center gap-1 rounded px-1 py-1 text-xs text-muted-foreground hover:bg-background hover:text-foreground"
+        >
+          <Plus className="h-3 w-3" />
+          Nova linha
+        </button>
       </div>
+
+      {placeholderCount === 0 && lines.length === 0 && (
+        <div className="px-3 pb-3 text-sm text-muted-foreground">Escreva aqui...</div>
+      )}
     </div>
-  )
-})
+  );
+});
+
+export { ANCHOR_PLACEHOLDER_HEIGHT };

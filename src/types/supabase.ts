@@ -227,6 +227,7 @@ export type Database = {
       note_blocks: {
         Row: {
           canvas_id: string
+          child_canvas_id: string | null
           content: Json
           created_at: string | null
           height: number
@@ -240,6 +241,7 @@ export type Database = {
         }
         Insert: {
           canvas_id: string
+          child_canvas_id?: string | null
           content?: Json
           created_at?: string | null
           height?: number
@@ -253,6 +255,7 @@ export type Database = {
         }
         Update: {
           canvas_id?: string
+          child_canvas_id?: string | null
           content?: Json
           created_at?: string | null
           height?: number
@@ -273,6 +276,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "note_blocks_child_canvas_id_fkey"
+            columns: ["child_canvas_id"]
+            isOneToOne: false
+            referencedRelation: "note_canvases"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "note_blocks_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
@@ -285,22 +295,50 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
+          icon_asset_url: string | null
+          icon_type: string
+          icon_value: string | null
+          is_root: boolean
+          last_opened_at: string | null
+          parent_canvas_id: string | null
+          title: string
           updated_at: string | null
           user_id: string
         }
         Insert: {
           created_at?: string | null
           id?: string
+          icon_asset_url?: string | null
+          icon_type?: string
+          icon_value?: string | null
+          is_root?: boolean
+          last_opened_at?: string | null
+          parent_canvas_id?: string | null
+          title?: string
           updated_at?: string | null
           user_id: string
         }
         Update: {
           created_at?: string | null
           id?: string
+          icon_asset_url?: string | null
+          icon_type?: string
+          icon_value?: string | null
+          is_root?: boolean
+          last_opened_at?: string | null
+          parent_canvas_id?: string | null
+          title?: string
           updated_at?: string | null
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "note_canvases_parent_canvas_id_fkey"
+            columns: ["parent_canvas_id"]
+            isOneToOne: false
+            referencedRelation: "note_canvases"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "note_canvases_user_id_fkey"
             columns: ["user_id"]
@@ -315,21 +353,45 @@ export type Database = {
           canvas_id: string
           created_at: string | null
           id: string
+          source_position_ratio: number
           source_block_id: string
+          source_side: string
+          source_target_id: string | null
+          source_target_type: string
+          target_position_ratio: number
+          target_side: string
+          target_target_id: string | null
+          target_target_type: string
           target_block_id: string
         }
         Insert: {
           canvas_id: string
           created_at?: string | null
           id?: string
+          source_position_ratio?: number
           source_block_id: string
+          source_side?: string
+          source_target_id?: string | null
+          source_target_type?: string
+          target_position_ratio?: number
+          target_side?: string
+          target_target_id?: string | null
+          target_target_type?: string
           target_block_id: string
         }
         Update: {
           canvas_id?: string
           created_at?: string | null
           id?: string
+          source_position_ratio?: number
           source_block_id?: string
+          source_side?: string
+          source_target_id?: string | null
+          source_target_type?: string
+          target_position_ratio?: number
+          target_side?: string
+          target_target_id?: string | null
+          target_target_type?: string
           target_block_id?: string
         }
         Relationships: [

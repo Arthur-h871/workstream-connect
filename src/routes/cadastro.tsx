@@ -10,6 +10,7 @@ import {
 } from "backend/api/services/auth.service";
 
 export const Route = createFileRoute("/cadastro")({
+  ssr: false,
   beforeLoad: async () => {
     const { session } = await getSession();
     if (session) throw redirect({ to: "/dashboard" });
@@ -102,8 +103,14 @@ function Cadastro() {
       form.orgId,
     );
     if (signUpError) {
+      const isRateLimit =
+        signUpError.includes("rate limit") ||
+        signUpError.includes("over_email_send_rate_limit") ||
+        signUpError.includes("429");
       setError(
-        "Não foi possível criar a conta. Verifique os dados e tente novamente.",
+        isRateLimit
+          ? "Muitas tentativas recentes. Aguarde alguns minutos e tente novamente."
+          : "Não foi possível criar a conta. Verifique os dados e tente novamente.",
       );
       setStep("form");
       return;

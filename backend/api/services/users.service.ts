@@ -57,35 +57,49 @@ export async function uploadAvatar(userId: string, file: File): Promise<string |
 
 export async function getProfileStats(userId: string): Promise<ProfileStats> {
   const now = new Date();
-  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  const yearAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate())
+    .toISOString()
+    .slice(0, 10);
 
-  const { data: apontamentos } = await supabase
-    .from("apontamentos")
-    .select("date, hours_worked")
-    .eq("user_id", userId)
-    .order("date", { ascending: false });
+  const [{ data: monthApontamentos }, { data: streakDates }] = await Promise.all([
+    supabase
+      .from("apontamentos")
+      .select("date, hours_worked")
+      .eq("user_id", userId)
+      .gte("date", firstOfMonth)
+      .order("date", { ascending: false }),
 
-  if (!apontamentos || apontamentos.length === 0) {
+    supabase
+      .from("apontamentos")
+      .select("date")
+      .eq("user_id", userId)
+      .gte("date", yearAgo)
+      .order("date", { ascending: false }),
+  ]);
+
+  if ((!monthApontamentos || monthApontamentos.length === 0) && (!streakDates || streakDates.length === 0)) {
     return { horasNoMes: 0, streak: 0 };
   }
 
-  const horasNoMes = apontamentos
-    .filter((a) => a.date >= firstOfMonth.slice(0, 10))
-    .reduce((sum, a) => sum + (a.hours_worked ?? 0), 0);
+  const horasNoMes = (monthApontamentos ?? []).reduce(
+    (sum, apontamento) => sum + Number(apontamento.hours_worked ?? 0),
+    0,
+  );
 
-  let streak = 0;
+  if (!streakDates || streakDates.length === 0) {
+    return { horasNoMes, streak: 0 };
+  }
+
+  const dates = new Set(streakDates.map((apontamento) => apontamento.date.slice(0, 10)));
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const dates = new Set(apontamentos.map((a) => a.date.slice(0, 10)));
-
-  for (let d = new Date(today); ; d.setDate(d.getDate() - 1)) {
-    const key = d.toISOString().slice(0, 10);
-    if (dates.has(key)) {
-      streak++;
-    } else {
-      break;
-    }
+  let streak = 0;
+  for (let day = new Date(today); ; day.setDate(day.getDate() - 1)) {
+    const key = day.toISOString().slice(0, 10);
+    if (!dates.has(key)) break;
+    streak++;
   }
 
   return { horasNoMes, streak };

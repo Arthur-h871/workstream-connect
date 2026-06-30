@@ -1,7 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Copy, Check, MoreVertical } from "lucide-react";
+import { toast } from "sonner";
 import { useState } from "react";
-import { AppShell } from "@/components/AppShell";
 import {
   getMyOrganization,
   getOrgMembers,
@@ -35,11 +35,7 @@ export const Route = createFileRoute("/_authenticated/admin/membros")({
     ]);
     return { org, members, pending, currentUserId: context.profile.id };
   },
-  component: () => (
-    <AppShell>
-      <Membros />
-    </AppShell>
-  ),
+  component: Membros,
 });
 
 function getInitials(name: string): string {
@@ -197,7 +193,11 @@ function PendingRow({
         <button
           onClick={async () => {
             setState("accepting-user");
-            await onAccept(request.id, "tenant_user");
+            try {
+              await onAccept(request.id, "tenant_user");
+            } catch {
+              setState("idle");
+            }
           }}
           disabled={state !== "idle"}
           className="rounded-md bg-teal px-3 py-1.5 text-xs font-semibold text-background hover:opacity-90 disabled:opacity-40"
@@ -208,7 +208,11 @@ function PendingRow({
         <button
           onClick={async () => {
             setState("accepting-admin");
-            await onAccept(request.id, "tenant_admin");
+            try {
+              await onAccept(request.id, "tenant_admin");
+            } catch {
+              setState("idle");
+            }
           }}
           disabled={state !== "idle"}
           className="rounded-md bg-teal-soft px-3 py-1.5 text-xs font-semibold text-teal hover:opacity-90 disabled:opacity-40"
@@ -219,7 +223,11 @@ function PendingRow({
         <button
           onClick={async () => {
             setState("rejecting");
-            await onReject(request.user_id, request.id);
+            try {
+              await onReject(request.user_id, request.id);
+            } catch {
+              setState("idle");
+            }
           }}
           disabled={state !== "idle"}
           className="rounded-md border border-border px-3 py-1.5 text-xs text-destructive hover:bg-destructive/10 disabled:opacity-40"
@@ -256,25 +264,39 @@ function Membros() {
         m.id === memberId ? { ...m, role: "tenant_admin" as const } : m,
       ),
     );
-    promoteToAdmin(memberId).catch(() => setMembers(initialMembers));
+    promoteToAdmin(memberId).catch(() => {
+      setMembers(initialMembers);
+      toast.error("Erro ao promover membro.");
+    });
   }
 
   function handleRemove(memberId: string) {
     setMembers((prev) => prev.filter((m) => m.id !== memberId));
-    removeMember(memberId).catch(() => setMembers(initialMembers));
+    removeMember(memberId).catch(() => {
+      setMembers(initialMembers);
+      toast.error("Erro ao remover membro.");
+    });
   }
 
   async function handleAccept(
     requestId: string,
     role: "tenant_user" | "tenant_admin",
   ) {
-    await acceptMember(requestId, role);
-    setPending((prev) => prev.filter((p) => p.id !== requestId));
+    try {
+      await acceptMember(requestId, role);
+      setPending((prev) => prev.filter((p) => p.id !== requestId));
+    } catch {
+      toast.error("Erro ao aceitar pedido.");
+    }
   }
 
   async function handleReject(userId: string, requestId: string) {
-    await rejectMember(userId);
-    setPending((prev) => prev.filter((p) => p.id !== requestId));
+    try {
+      await rejectMember(userId);
+      setPending((prev) => prev.filter((p) => p.id !== requestId));
+    } catch {
+      toast.error("Erro ao rejeitar pedido.");
+    }
   }
 
   return (

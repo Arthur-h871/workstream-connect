@@ -1,7 +1,7 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { ChevronDown, Plus, Trash2 } from "lucide-react";
 import { useState, useRef } from "react";
-import { AppShell } from "@/components/AppShell";
+import { toast } from "sonner";
 import { getProject } from "backend/api/services/projects.service";
 import {
   getOrgTasks,
@@ -13,6 +13,9 @@ import {
 import { getOrgMembers, type OrgMember } from "backend/api/services/users.service";
 
 export const Route = createFileRoute("/_authenticated/tarefas-org_/$projectId")({
+  staticData: {
+    shellTitle: "Tarefas da Organização",
+  },
   loader: async ({ params, context }) => {
     const [project, tasks, members] = await Promise.all([
       getProject(params.projectId),
@@ -35,16 +38,14 @@ export const Route = createFileRoute("/_authenticated/tarefas-org_/$projectId")(
 function ProjectPage() {
   const { project, tasks, members, orgId, userId, isAdmin } = Route.useLoaderData();
   return (
-    <AppShell title="Tarefas da Organização">
-      <ProjectView
-        project={project}
-        initialTasks={tasks}
-        members={members}
-        orgId={orgId}
-        userId={userId}
-        isAdmin={isAdmin}
-      />
-    </AppShell>
+    <ProjectView
+      project={project}
+      initialTasks={tasks}
+      members={members}
+      orgId={orgId}
+      userId={userId}
+      isAdmin={isAdmin}
+    />
   );
 }
 
@@ -86,9 +87,13 @@ function ProjectView({
     setCreating(false);
   }
 
-  function handleDelete(id: string) {
-    setTasks((prev) => prev.filter((t) => t.id !== id));
-    deleteOrgTask(id);
+  async function handleDelete(id: string) {
+    try {
+      await deleteOrgTask(id);
+      setTasks((prev) => prev.filter((t) => t.id !== id));
+    } catch {
+      toast.error("Erro ao excluir tarefa.");
+    }
   }
 
   return (
@@ -186,30 +191,50 @@ function TaskRow({
   function handleDescChange(value: string) {
     onUpdate(task.id, { description: value });
     if (descDebounce.current) clearTimeout(descDebounce.current);
-    descDebounce.current = setTimeout(() => updateOrgTask(task.id, { description: value }), 800);
+    descDebounce.current = setTimeout(() => {
+      updateOrgTask(task.id, { description: value }).catch(() =>
+        toast.error("Erro ao salvar descrição."),
+      );
+    }, 800);
   }
 
   function handleNoteChange(value: string) {
     onUpdate(task.id, { note: value });
     if (noteDebounce.current) clearTimeout(noteDebounce.current);
-    noteDebounce.current = setTimeout(() => updateOrgTask(task.id, { note: value }), 800);
+    noteDebounce.current = setTimeout(() => {
+      updateOrgTask(task.id, { note: value }).catch(() =>
+        toast.error("Erro ao salvar nota."),
+      );
+    }, 800);
   }
 
   function handleStatusChange(status: OrgTask["status"]) {
+    const previous = task.status;
     onUpdate(task.id, { status });
-    updateOrgTask(task.id, { status });
+    updateOrgTask(task.id, { status }).catch(() => {
+      onUpdate(task.id, { status: previous });
+      toast.error("Erro ao atualizar status.");
+    });
   }
 
   function handleAssignedChange(value: string) {
     const assigned_to = value || null;
+    const previous = task.assigned_to;
     onUpdate(task.id, { assigned_to });
-    updateOrgTask(task.id, { assigned_to });
+    updateOrgTask(task.id, { assigned_to }).catch(() => {
+      onUpdate(task.id, { assigned_to: previous });
+      toast.error("Erro ao atualizar responsável.");
+    });
   }
 
   function handleDueDateChange(value: string) {
     const due_date = value || null;
+    const previous = task.due_date;
     onUpdate(task.id, { due_date });
-    updateOrgTask(task.id, { due_date });
+    updateOrgTask(task.id, { due_date }).catch(() => {
+      onUpdate(task.id, { due_date: previous });
+      toast.error("Erro ao salvar prazo.");
+    });
   }
 
   const done = task.status === "completed";
@@ -249,7 +274,7 @@ function TaskRow({
             <Section label="Descrição">
               <textarea
                 rows={2}
-                defaultValue={task.description ?? ""}
+                value={task.description ?? ""}
                 onChange={(e) => handleDescChange(e.target.value)}
                 className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-teal focus:outline-none"
               />
@@ -290,7 +315,7 @@ function TaskRow({
           <Section label="Nota">
             <textarea
               rows={3}
-              defaultValue={task.note ?? ""}
+              value={task.note ?? ""}
               onChange={(e) => handleNoteChange(e.target.value)}
               className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm focus:border-teal focus:outline-none"
             />
