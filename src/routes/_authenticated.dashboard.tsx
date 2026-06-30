@@ -13,10 +13,14 @@ import {
   type CaptureSession,
 } from "backend/api/services/sessions.service";
 import { DaemonDraftReview } from "@/components/DaemonDraftReview";
+import {
+  DaemonSessionReview,
+  type DirEntry,
+  type GeneratePayload,
+  type SessionScreenshot,
+} from "@/components/DaemonSessionReview";
 
 const DAEMON_URL = import.meta.env.VITE_DAEMON_URL ?? "http://localhost:7432";
-
-type WatchedDir = { id: string; path: string; description: string };
 
 /** Checks whether the local capture daemon is reachable; polls every 10 s. */
 function useDaemonStatus(): boolean {
@@ -54,79 +58,22 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
 });
 
-function NotesModal({
-  dirs,
-  onConfirm,
-  onCancel,
-}: {
-  dirs: WatchedDir[];
-  onConfirm: (notes: Record<string, string>) => void;
-  onCancel: () => void;
-}) {
-  const [notes, setNotes] = useState<Record<string, string>>({});
-
-  function handleChange(id: string, value: string) {
-    setNotes((prev) => ({ ...prev, [id]: value }));
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-lg rounded-xl border border-border bg-surface p-6 shadow-xl">
-        <h2 className="mb-1 text-base font-semibold">Notas de encerramento</h2>
-        <p className="mb-4 text-sm text-muted-foreground">
-          Adicione notas opcionais para cada diretório monitorado antes de finalizar a sessão.
-        </p>
-        {dirs.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhum diretório monitorado encontrado.</p>
-        ) : (
-          <div className="space-y-4">
-            {dirs.map((dir) => (
-              <div key={dir.id}>
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">
-                  {dir.description || dir.path}
-                  <span className="ml-1 font-mono text-[10px] opacity-60">{dir.path}</span>
-                </label>
-                <textarea
-                  rows={2}
-                  value={notes[dir.id] ?? ""}
-                  onChange={(e) => handleChange(dir.id, e.target.value)}
-                  className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm text-muted-foreground focus:outline-none focus:ring-1 focus:ring-copper"
-                />
-              </div>
-            ))}
-          </div>
-        )}
-        <div className="mt-5 flex justify-end gap-2">
-          <button
-            onClick={onCancel}
-            className="rounded-md border border-border px-4 py-1.5 text-sm text-muted-foreground hover:bg-background"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={() => onConfirm(notes)}
-            className="rounded-md bg-copper px-4 py-1.5 text-sm font-medium text-white hover:opacity-90"
-          >
-            Confirmar
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function Recorder({
   setDaemonDrafts,
   onStopSessionId,
+  setDaemonSession,
 }: {
   setDaemonDrafts: React.Dispatch<React.SetStateAction<unknown[]>>;
   onStopSessionId: (sessionId: string) => void;
+  setDaemonSession: React.Dispatch<React.SetStateAction<{
+    sessionId: string;
+    dirs: DirEntry[];
+    screenshots: SessionScreenshot[];
+  } | null>>;
 }) {
   const { session: initialSession, userId, orgId } = Route.useLoaderData();
   const [session, setSession] = useState<CaptureSession | null>(initialSession);
   const [loading, setLoading] = useState(false);
-  const [showNotesModal, setShowNotesModal] = useState(false);
-  const [watchedDirs, setWatchedDirs] = useState<WatchedDir[]>([]);
   const isStoppingRef = useRef(false);
 
   const daemonOnline = useDaemonStatus();
@@ -173,31 +120,16 @@ function Recorder({
     }
   }
 
-  /** Initiates the stop flow: shows the notes modal if daemon is online, else stops directly. */
   async function handleStopRequest() {
     if (!session || loading) return;
     setLoading(true);
-    if (daemonOnline) {
-      try {
-        const resp = await fetch(`${DAEMON_URL}/directories`);
-        const dirs = (await resp.json()) as WatchedDir[];
-        setWatchedDirs(dirs);
-      } catch {
-        setWatchedDirs([]);
-      }
-      setShowNotesModal(true);
-      setLoading(false);
-    } else {
-      await handleStopConfirm({});
-    }
+    await handleStopConfirm();
   }
 
-  /** Completes the stop after the user submits (or skips) the notes modal. */
-  async function handleStopConfirm(notes: Record<string, string>) {
+  async function handleStopConfirm() {
     if (!session) return;
     if (isStoppingRef.current) return;
     isStoppingRef.current = true;
-    setShowNotesModal(false);
     setLoading(true);
     const sessionId = session.id;
     try {
@@ -209,22 +141,25 @@ function Recorder({
           const resp = await fetch(`${DAEMON_URL}/session/stop`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ session_id: sessionId, dir_notes: notes }),
+            body: JSON.stringify({ session_id: sessionId, dir_notes: {} }),
           });
-          const data = (await resp.json()) as { results?: unknown[] };
-          const results = data.results ?? [];
-          if (results.length > 0) {
-            // Set sessionId before drafts — React 18 batches both state updates
-            // ensuring stoppedSessionId is never "" when daemonDrafts.length > 0
+          const data = (await resp.json()) as {
+            dirs?: DirEntry[];
+            screenshots?: SessionScreenshot[];
+          };
+          if ((data.dirs ?? []).length > 0) {
             onStopSessionId(sessionId);
-            setDaemonDrafts(results);
+            setDaemonSession({
+              sessionId,
+              dirs: data.dirs ?? [],
+              screenshots: data.screenshots ?? [],
+            });
           } else {
             triggerGenerateReport(sessionId).catch((e: unknown) => {
               console.error("Erro ao gerar relatório:", e);
             });
           }
         } catch {
-          // daemon unavailable — fall through to screenshot-based generation
           triggerGenerateReport(sessionId).catch((e: unknown) => {
             console.error("Erro ao gerar relatório:", e);
           });
@@ -253,16 +188,6 @@ function Recorder({
 
   return (
     <>
-      {showNotesModal && (
-        <NotesModal
-          dirs={watchedDirs}
-          onConfirm={handleStopConfirm}
-          onCancel={() => {
-            setShowNotesModal(false);
-            setLoading(false);
-          }}
-        />
-      )}
       <div className="flex items-center gap-3">
         {isActive && (
           <span className="font-mono text-xs text-muted-foreground">
@@ -366,6 +291,12 @@ function Dashboard() {
   const firstName = fullName.split(" ")[0];
   const [daemonDrafts, setDaemonDrafts] = useState<unknown[]>([]);
   const [stoppedSessionId, setStoppedSessionId] = useState<string>("");
+  type DaemonSession = {
+    sessionId: string;
+    dirs: DirEntry[];
+    screenshots: SessionScreenshot[];
+  };
+  const [daemonSession, setDaemonSession] = useState<DaemonSession | null>(null);
   const [data, setData] = useState<DashboardData | null>(null);
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [dataError, setDataError] = useState(false);
@@ -407,6 +338,22 @@ function Dashboard() {
     month: "long",
   }).format(now);
 
+  async function handleSessionSubmit(payload: GeneratePayload) {
+    try {
+      const resp = await fetch(`${DAEMON_URL}/session/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = (await resp.json()) as { results?: unknown[] };
+      setDaemonSession(null);
+      setDaemonDrafts(data.results ?? []);
+    } catch (e) {
+      console.error("Erro ao gerar apontamentos:", e);
+      throw e;
+    }
+  }
+
   return (
     <div className="bg-background">
       <div className="mb-8 flex items-center justify-between">
@@ -414,8 +361,22 @@ function Dashboard() {
           <h1 className="text-2xl font-semibold tracking-tight">{greeting}</h1>
           <p className="mt-1 text-sm text-muted-foreground capitalize">{dateLabel}</p>
         </div>
-        <Recorder setDaemonDrafts={setDaemonDrafts} onStopSessionId={setStoppedSessionId} />
+        <Recorder
+          setDaemonDrafts={setDaemonDrafts}
+          onStopSessionId={setStoppedSessionId}
+          setDaemonSession={setDaemonSession}
+        />
       </div>
+      {daemonSession && (
+        <DaemonSessionReview
+          sessionId={daemonSession.sessionId}
+          dirs={daemonSession.dirs}
+          screenshots={daemonSession.screenshots}
+          userId={userId}
+          onSubmit={handleSessionSubmit}
+          onDiscard={() => setDaemonSession(null)}
+        />
+      )}
       {daemonDrafts.length > 0 && (
         <DaemonDraftReview
           sessionId={stoppedSessionId}
