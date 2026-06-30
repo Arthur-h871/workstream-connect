@@ -95,32 +95,6 @@ function InnerCanvas() {
   const [drawWidth, setDrawWidth] = useState(2);
   const viewportRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    let channel: BroadcastChannel | null = null;
-    try {
-      channel = new BroadcastChannel("note-popups");
-      channel.onmessage = (event: MessageEvent) => {
-        const message = event.data as
-          | { blockId: string; type: "text"; content: TextBlockContent }
-          | { blockId: string; type: "todo"; content: TodoBlockContent };
-
-        setNodes((prev) =>
-          syncAnchoredTodoNodes(
-            prev.map((node) =>
-              node.id === message.blockId
-                ? { ...node, data: { ...node.data, content: message.content } }
-                : node,
-            ),
-          ),
-        );
-      };
-    } catch {
-      // BroadcastChannel can be unavailable in some private browsing modes.
-    }
-
-    return () => channel?.close();
-  }, [setNodes, syncAnchoredTodoNodes]);
-
   const syncAnchoredTodoNodes = useCallback((inputNodes: Node[]) => {
     const byId = new Map(inputNodes.map((node) => [node.id, node]));
     return inputNodes.map((node) => {
@@ -160,6 +134,32 @@ function InnerCanvas() {
       };
     });
   }, []);
+
+  useEffect(() => {
+    let channel: BroadcastChannel | null = null;
+    try {
+      channel = new BroadcastChannel("note-popups");
+      channel.onmessage = (event: MessageEvent) => {
+        const message = event.data as
+          | { blockId: string; type: "text"; content: TextBlockContent }
+          | { blockId: string; type: "todo"; content: TodoBlockContent };
+
+        setNodes((prev) =>
+          syncAnchoredTodoNodes(
+            prev.map((node) =>
+              node.id === message.blockId
+                ? { ...node, data: { ...node.data, content: message.content } }
+                : node,
+            ),
+          ),
+        );
+      };
+    } catch {
+      // BroadcastChannel can be unavailable in some private browsing modes.
+    }
+
+    return () => channel?.close();
+  }, [setNodes, syncAnchoredTodoNodes]);
 
   const viewportCenter = useCallback(() => {
     const viewportRect = viewportRef.current?.getBoundingClientRect();
