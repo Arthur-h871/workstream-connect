@@ -23,7 +23,6 @@ import { Route as AuthenticatedNotasRouteImport } from './routes/_authenticated.
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated.dashboard'
 import { Route as AuthenticatedApontamentosRouteImport } from './routes/_authenticated.apontamentos'
 import { Route as AuthenticatedTarefasOrgProjectIdRouteImport } from './routes/_authenticated.tarefas-org_.$projectId'
-import { Route as AuthenticatedSettingsDeveloperRouteImport } from './routes/_authenticated.settings.developer'
 import { Route as AuthenticatedAdminMembrosRouteImport } from './routes/_authenticated.admin.membros'
 
 const LoginRoute = LoginRouteImport.update({
@@ -97,12 +96,6 @@ const AuthenticatedTarefasOrgProjectIdRoute =
     path: '/tarefas-org/$projectId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedSettingsDeveloperRoute =
-  AuthenticatedSettingsDeveloperRouteImport.update({
-    id: '/settings/developer',
-    path: '/settings/developer',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
 const AuthenticatedAdminMembrosRoute =
   AuthenticatedAdminMembrosRouteImport.update({
     id: '/admin/membros',
@@ -124,7 +117,6 @@ export interface FileRoutesByFullPath {
   '/tarefas-org': typeof AuthenticatedTarefasOrgRoute
   '/popup/$blockId': typeof PopupBlockIdRoute
   '/admin/membros': typeof AuthenticatedAdminMembrosRoute
-  '/settings/developer': typeof AuthenticatedSettingsDeveloperRoute
   '/tarefas-org/$projectId': typeof AuthenticatedTarefasOrgProjectIdRoute
 }
 export interface FileRoutesByTo {
@@ -141,7 +133,6 @@ export interface FileRoutesByTo {
   '/tarefas-org': typeof AuthenticatedTarefasOrgRoute
   '/popup/$blockId': typeof PopupBlockIdRoute
   '/admin/membros': typeof AuthenticatedAdminMembrosRoute
-  '/settings/developer': typeof AuthenticatedSettingsDeveloperRoute
   '/tarefas-org/$projectId': typeof AuthenticatedTarefasOrgProjectIdRoute
 }
 export interface FileRoutesById {
@@ -160,7 +151,6 @@ export interface FileRoutesById {
   '/_authenticated/tarefas-org': typeof AuthenticatedTarefasOrgRoute
   '/popup/$blockId': typeof PopupBlockIdRoute
   '/_authenticated/admin/membros': typeof AuthenticatedAdminMembrosRoute
-  '/_authenticated/settings/developer': typeof AuthenticatedSettingsDeveloperRoute
   '/_authenticated/tarefas-org_/$projectId': typeof AuthenticatedTarefasOrgProjectIdRoute
 }
 export interface FileRouteTypes {
@@ -179,7 +169,6 @@ export interface FileRouteTypes {
     | '/tarefas-org'
     | '/popup/$blockId'
     | '/admin/membros'
-    | '/settings/developer'
     | '/tarefas-org/$projectId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -196,7 +185,6 @@ export interface FileRouteTypes {
     | '/tarefas-org'
     | '/popup/$blockId'
     | '/admin/membros'
-    | '/settings/developer'
     | '/tarefas-org/$projectId'
   id:
     | '__root__'
@@ -214,7 +202,6 @@ export interface FileRouteTypes {
     | '/_authenticated/tarefas-org'
     | '/popup/$blockId'
     | '/_authenticated/admin/membros'
-    | '/_authenticated/settings/developer'
     | '/_authenticated/tarefas-org_/$projectId'
   fileRoutesById: FileRoutesById
 }
@@ -328,13 +315,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTarefasOrgProjectIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/settings/developer': {
-      id: '/_authenticated/settings/developer'
-      path: '/settings/developer'
-      fullPath: '/settings/developer'
-      preLoaderRoute: typeof AuthenticatedSettingsDeveloperRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/admin/membros': {
       id: '/_authenticated/admin/membros'
       path: '/admin/membros'
@@ -353,7 +333,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedTarefasRoute: typeof AuthenticatedTarefasRoute
   AuthenticatedTarefasOrgRoute: typeof AuthenticatedTarefasOrgRoute
   AuthenticatedAdminMembrosRoute: typeof AuthenticatedAdminMembrosRoute
-  AuthenticatedSettingsDeveloperRoute: typeof AuthenticatedSettingsDeveloperRoute
   AuthenticatedTarefasOrgProjectIdRoute: typeof AuthenticatedTarefasOrgProjectIdRoute
 }
 
@@ -365,7 +344,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedTarefasRoute: AuthenticatedTarefasRoute,
   AuthenticatedTarefasOrgRoute: AuthenticatedTarefasOrgRoute,
   AuthenticatedAdminMembrosRoute: AuthenticatedAdminMembrosRoute,
-  AuthenticatedSettingsDeveloperRoute: AuthenticatedSettingsDeveloperRoute,
   AuthenticatedTarefasOrgProjectIdRoute: AuthenticatedTarefasOrgProjectIdRoute,
 }
 

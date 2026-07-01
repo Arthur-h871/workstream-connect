@@ -10,7 +10,6 @@ import {
   Bell,
   Shield,
   LogOut,
-  Terminal,
   type LucideIcon,
 } from "lucide-react";
 import { useState, useEffect, type ReactNode } from "react";
@@ -34,8 +33,6 @@ const navItems: NavItem[] = [
   { to: "/tarefas", label: "Minhas Tarefas", icon: CheckSquare },
   { to: "/perfil", label: "Perfil", icon: User },
   { to: "/admin/membros", label: "Membros", icon: Shield, admin: true },
-  // Visible to all users; shows "daemon offline" instructions if daemon is not running
-  { to: "/settings/developer", label: "Dev", icon: Terminal },
 ];
 
 function formatTimeAgo(isoStr: string): string {
@@ -91,9 +88,7 @@ function NotificationBell() {
 
   async function handleMarkAllRead() {
     const optimisticReadAt = new Date().toISOString();
-    setNotifications((prev) =>
-      prev.map((n) => ({ ...n, read_at: n.read_at ?? optimisticReadAt })),
-    );
+    setNotifications((prev) => prev.map((n) => ({ ...n, read_at: n.read_at ?? optimisticReadAt })));
     try {
       await markAllAsRead(userId);
     } catch {
