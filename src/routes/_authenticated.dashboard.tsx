@@ -9,36 +9,10 @@ import {
   resumeSession,
   stopSession,
   deleteSession,
-  triggerGenerateReport,
   type CaptureSession,
 } from "backend/api/services/sessions.service";
-import { DaemonDraftReview } from "@/components/DaemonDraftReview";
-import {
-  DaemonSessionReview,
-  type DirEntry,
-  type GeneratePayload,
-  type SessionScreenshot,
-} from "@/components/DaemonSessionReview";
-
-const DAEMON_URL = import.meta.env.VITE_DAEMON_URL ?? "http://localhost:7432";
-
-/** Checks whether the local capture daemon is reachable; polls every 10 s. */
-function useDaemonStatus(): boolean {
-  const [online, setOnline] = useState(false);
-
-  useEffect(() => {
-    const probe = () =>
-      fetch(`${DAEMON_URL}/status`, { signal: AbortSignal.timeout(3000) })
-        .then((r) => setOnline(r.ok))
-        .catch(() => setOnline(false));
-
-    probe();
-    const id = setInterval(probe, 10_000);
-    return () => clearInterval(id);
-  }, []);
-
-  return online;
-}
+import { SessionReviewChat } from "@/components/SessionReviewChat";
+import { startCapture, type CaptureHandle } from "@/lib/screen-capture";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
@@ -58,25 +32,13 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
 });
 
-function Recorder({
-  setDaemonDrafts,
-  onStopSessionId,
-  setDaemonSession,
-}: {
-  setDaemonDrafts: React.Dispatch<React.SetStateAction<unknown[]>>;
-  onStopSessionId: (sessionId: string) => void;
-  setDaemonSession: React.Dispatch<React.SetStateAction<{
-    sessionId: string;
-    dirs: DirEntry[];
-    screenshots: SessionScreenshot[];
-  } | null>>;
-}) {
+function Recorder({ onSessionStopped }: { onSessionStopped: (sessionId: string) => void }) {
   const { session: initialSession, userId, orgId } = Route.useLoaderData();
   const [session, setSession] = useState<CaptureSession | null>(initialSession);
   const [loading, setLoading] = useState(false);
+  const [captureError, setCaptureError] = useState<string | null>(null);
   const isStoppingRef = useRef(false);
-
-  const daemonOnline = useDaemonStatus();
+  const captureHandleRef = useRef<CaptureHandle | null>(null);
 
   const status = session?.status ?? "idle";
   const isActive = session !== null;
@@ -84,23 +46,33 @@ function Recorder({
   async function handlePlay() {
     if (loading) return;
     setLoading(true);
+    setCaptureError(null);
     try {
       const newSession = await createSession(userId, orgId);
       setSession(newSession);
 
-      if (daemonOnline) {
-        try {
-          await fetch(`${DAEMON_URL}/session/start`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ session_id: newSession.id, user_id: userId, org_id: orgId }),
-          });
-        } catch {
-          // best-effort; session continues without daemon
-        }
+      try {
+        captureHandleRef.current = await startCapture({
+          sessionId: newSession.id,
+          userId,
+          organizationId: orgId,
+          onError: (error) => console.error("Erro ao capturar/enviar screenshot:", error),
+        });
+      } catch (error) {
+        console.error("Erro ao iniciar captura de tela:", error);
+        setCaptureError("Não foi possível iniciar o compartilhamento de tela.");
       }
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleAddMonitor() {
+    if (!captureHandleRef.current) return;
+    try {
+      await captureHandleRef.current.addMonitor();
+    } catch (error) {
+      console.error("Erro ao autorizar monitor adicional:", error);
     }
   }
 
@@ -110,9 +82,11 @@ function Recorder({
     try {
       if (session.status === "active") {
         await pauseSession(session.id);
+        captureHandleRef.current?.pause();
         setSession((s) => (s ? { ...s, status: "paused" } : s));
       } else {
         await resumeSession(session.id);
+        captureHandleRef.current?.resume();
         setSession((s) => (s ? { ...s, status: "active" } : s));
       }
     } finally {
@@ -133,42 +107,11 @@ function Recorder({
     setLoading(true);
     const sessionId = session.id;
     try {
+      captureHandleRef.current?.stopCapture();
+      captureHandleRef.current = null;
       await stopSession(sessionId);
       setSession(null);
-
-      if (daemonOnline) {
-        try {
-          const resp = await fetch(`${DAEMON_URL}/session/stop`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ session_id: sessionId, dir_notes: {} }),
-          });
-          const data = (await resp.json()) as {
-            dirs?: DirEntry[];
-            screenshots?: SessionScreenshot[];
-          };
-          if ((data.dirs ?? []).length > 0) {
-            onStopSessionId(sessionId);
-            setDaemonSession({
-              sessionId,
-              dirs: data.dirs ?? [],
-              screenshots: data.screenshots ?? [],
-            });
-          } else {
-            triggerGenerateReport(sessionId).catch((e: unknown) => {
-              console.error("Erro ao gerar relatório:", e);
-            });
-          }
-        } catch {
-          triggerGenerateReport(sessionId).catch((e: unknown) => {
-            console.error("Erro ao gerar relatório:", e);
-          });
-        }
-      } else {
-        triggerGenerateReport(sessionId).catch((e: unknown) => {
-          console.error("Erro ao gerar relatório:", e);
-        });
-      }
+      onSessionStopped(sessionId);
     } finally {
       setLoading(false);
       isStoppingRef.current = false;
@@ -179,6 +122,8 @@ function Recorder({
     if (!session || loading) return;
     setLoading(true);
     try {
+      captureHandleRef.current?.stopCapture();
+      captureHandleRef.current = null;
       await deleteSession(session.id);
       setSession(null);
     } finally {
@@ -216,6 +161,14 @@ function Recorder({
           {isActive && (
             <>
               <button
+                onClick={handleAddMonitor}
+                disabled={loading}
+                className="flex h-7 items-center justify-center rounded px-2 text-xs text-muted-foreground hover:bg-background hover:text-foreground disabled:opacity-40"
+                aria-label="Autorizar monitor adicional"
+              >
+                +monitor
+              </button>
+              <button
                 onClick={handlePauseResume}
                 disabled={loading}
                 className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-background hover:text-foreground disabled:opacity-40"
@@ -247,6 +200,7 @@ function Recorder({
           )}
         </div>
       </div>
+      {captureError && <p className="mt-2 text-xs text-destructive">{captureError}</p>}
     </>
   );
 }
@@ -289,14 +243,7 @@ function Heatmap({ activeDays, streak }: { activeDays: string[]; streak: number 
 function Dashboard() {
   const { fullName, userId, orgId } = Route.useLoaderData();
   const firstName = fullName.split(" ")[0];
-  const [daemonDrafts, setDaemonDrafts] = useState<unknown[]>([]);
-  const [stoppedSessionId, setStoppedSessionId] = useState<string>("");
-  type DaemonSession = {
-    sessionId: string;
-    dirs: DirEntry[];
-    screenshots: SessionScreenshot[];
-  };
-  const [daemonSession, setDaemonSession] = useState<DaemonSession | null>(null);
+  const [reviewSessionId, setReviewSessionId] = useState<string | null>(null);
   const [data, setData] = useState<DashboardData | null>(null);
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [dataError, setDataError] = useState(false);
@@ -338,22 +285,6 @@ function Dashboard() {
     month: "long",
   }).format(now);
 
-  async function handleSessionSubmit(payload: GeneratePayload) {
-    try {
-      const resp = await fetch(`${DAEMON_URL}/session/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = (await resp.json()) as { results?: unknown[] };
-      setDaemonSession(null);
-      setDaemonDrafts(data.results ?? []);
-    } catch (e) {
-      console.error("Erro ao gerar apontamentos:", e);
-      throw e;
-    }
-  }
-
   return (
     <div className="bg-background">
       <div className="mb-8 flex items-center justify-between">
@@ -361,30 +292,15 @@ function Dashboard() {
           <h1 className="text-2xl font-semibold tracking-tight">{greeting}</h1>
           <p className="mt-1 text-sm text-muted-foreground capitalize">{dateLabel}</p>
         </div>
-        <Recorder
-          setDaemonDrafts={setDaemonDrafts}
-          onStopSessionId={setStoppedSessionId}
-          setDaemonSession={setDaemonSession}
-        />
+        <Recorder onSessionStopped={setReviewSessionId} />
       </div>
-      {daemonSession && (
-        <DaemonSessionReview
-          sessionId={daemonSession.sessionId}
-          dirs={daemonSession.dirs}
-          screenshots={daemonSession.screenshots}
+      {reviewSessionId && (
+        <SessionReviewChat
+          sessionId={reviewSessionId}
           userId={userId}
-          onSubmit={handleSessionSubmit}
-          onDiscard={() => setDaemonSession(null)}
-        />
-      )}
-      {daemonDrafts.length > 0 && (
-        <DaemonDraftReview
-          sessionId={stoppedSessionId}
-          drafts={daemonDrafts}
-          orgId={orgId}
-          userId={userId}
-          onComplete={async () => {
-            setDaemonDrafts([]);
+          organizationId={orgId}
+          onComplete={() => {
+            setReviewSessionId(null);
             setRefreshKey((value) => value + 1);
           }}
         />

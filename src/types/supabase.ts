@@ -149,6 +149,7 @@ export type Database = {
           id: string
           organization_id: string
           paused_at: string | null
+          pending_task_links: Json
           screenshot_count: number
           started_at: string
           status: Database["public"]["Enums"]["session_status"]
@@ -159,6 +160,7 @@ export type Database = {
           id?: string
           organization_id: string
           paused_at?: string | null
+          pending_task_links?: Json
           screenshot_count?: number
           started_at?: string
           status?: Database["public"]["Enums"]["session_status"]
@@ -169,6 +171,7 @@ export type Database = {
           id?: string
           organization_id?: string
           paused_at?: string | null
+          pending_task_links?: Json
           screenshot_count?: number
           started_at?: string
           status?: Database["public"]["Enums"]["session_status"]
@@ -294,10 +297,10 @@ export type Database = {
       note_canvases: {
         Row: {
           created_at: string | null
-          id: string
           icon_asset_url: string | null
           icon_type: string
           icon_value: string | null
+          id: string
           is_root: boolean
           last_opened_at: string | null
           parent_canvas_id: string | null
@@ -307,10 +310,10 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
-          id?: string
           icon_asset_url?: string | null
           icon_type?: string
           icon_value?: string | null
+          id?: string
           is_root?: boolean
           last_opened_at?: string | null
           parent_canvas_id?: string | null
@@ -320,10 +323,10 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
-          id?: string
           icon_asset_url?: string | null
           icon_type?: string
           icon_value?: string | null
+          id?: string
           is_root?: boolean
           last_opened_at?: string | null
           parent_canvas_id?: string | null
@@ -342,7 +345,7 @@ export type Database = {
           {
             foreignKeyName: "note_canvases_user_id_fkey"
             columns: ["user_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -353,46 +356,46 @@ export type Database = {
           canvas_id: string
           created_at: string | null
           id: string
-          source_position_ratio: number
           source_block_id: string
+          source_position_ratio: number
           source_side: string
           source_target_id: string | null
           source_target_type: string
+          target_block_id: string
           target_position_ratio: number
           target_side: string
           target_target_id: string | null
           target_target_type: string
-          target_block_id: string
         }
         Insert: {
           canvas_id: string
           created_at?: string | null
           id?: string
-          source_position_ratio?: number
           source_block_id: string
+          source_position_ratio?: number
           source_side?: string
           source_target_id?: string | null
           source_target_type?: string
+          target_block_id: string
           target_position_ratio?: number
           target_side?: string
           target_target_id?: string | null
           target_target_type?: string
-          target_block_id: string
         }
         Update: {
           canvas_id?: string
           created_at?: string | null
           id?: string
-          source_position_ratio?: number
           source_block_id?: string
+          source_position_ratio?: number
           source_side?: string
           source_target_id?: string | null
           source_target_type?: string
+          target_block_id?: string
           target_position_ratio?: number
           target_side?: string
           target_target_id?: string | null
           target_target_type?: string
-          target_block_id?: string
         }
         Relationships: [
           {
@@ -806,6 +809,7 @@ export type Database = {
           deleted_at: string | null
           file_size_bytes: number
           id: string
+          monitor_index: number
           organization_id: string
           session_id: string
           storage_path: string
@@ -816,6 +820,7 @@ export type Database = {
           deleted_at?: string | null
           file_size_bytes: number
           id?: string
+          monitor_index?: number
           organization_id: string
           session_id: string
           storage_path: string
@@ -826,6 +831,7 @@ export type Database = {
           deleted_at?: string | null
           file_size_bytes?: number
           id?: string
+          monitor_index?: number
           organization_id?: string
           session_id?: string
           storage_path?: string
@@ -851,6 +857,38 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      session_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          role: string
+          session_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          role: string
+          session_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          role?: string
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "capture_sessions"
             referencedColumns: ["id"]
           },
         ]
@@ -886,7 +924,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_to_org: { Args: { p_org_code: string }; Returns: undefined }
+      cancel_my_member_request: { Args: never; Returns: undefined }
       get_my_org_id: { Args: never; Returns: string }
+      get_my_pending_request: {
+        Args: never
+        Returns: {
+          org_id: string
+          org_name: string
+        }[]
+      }
       get_my_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]

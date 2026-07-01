@@ -136,7 +136,7 @@ export async function createApontamento(data: {
   return mapRow(row);
 }
 
-/** Creates a fully-specified apontamento from daemon draft data. */
+/** Creates a fully-specified apontamento from an AI-generated draft. */
 export async function createApontamentoFromDraft(fields: {
   user_id: string;
   organization_id: string;
