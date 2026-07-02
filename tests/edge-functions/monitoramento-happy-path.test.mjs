@@ -54,7 +54,7 @@ test("monitoramento start/chat happy path with a real fixture user", { skip }, a
 
   const { data: org, error: orgError } = await admin
     .from("organizations")
-    .insert({ name: `Fixture Org ${suffix}` })
+    .insert({ name: `Fixture Org ${suffix}`, ai_provider: "anthropic" })
     .select("id")
     .single();
   assert.strictEqual(orgError, null, `failed to create fixture org: ${orgError?.message}`);

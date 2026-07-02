@@ -609,6 +609,7 @@ export type Database = {
       }
       organizations: {
         Row: {
+          ai_provider: string
           code: string
           created_at: string
           id: string
@@ -618,6 +619,7 @@ export type Database = {
           retention_days: number
         }
         Insert: {
+          ai_provider?: string
           code?: string
           created_at?: string
           id?: string
@@ -627,6 +629,7 @@ export type Database = {
           retention_days?: number
         }
         Update: {
+          ai_provider?: string
           code?: string
           created_at?: string
           id?: string
@@ -1068,7 +1071,7 @@ export type CompositeTypes<
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["CompositeTypes"]
     : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
