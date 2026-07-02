@@ -1,7 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.27.0";
-
-const MODEL = "claude-haiku-4-5-20251001";
+import { resolveProvider } from "./providers/resolve.ts";
+import type { NormalizedMessage, Draft } from "./providers/types.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,10 +11,6 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
-
-const anthropic = new Anthropic({
-  apiKey: Deno.env.get("ANTHROPIC_API_KEY")!,
-});
 
 const SYSTEM_PROMPT = `Você é um assistente de produtividade que ajuda o usuário a redigir um apontamento de trabalho em português brasileiro, com base em screenshots da tela e no contexto fornecido.
 
@@ -34,8 +29,6 @@ type LinkedTaskInput = {
   description?: string | null;
   status: "started" | "concluded";
 };
-
-type Draft = { content: string; hours_worked: number };
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -91,18 +84,6 @@ async function loadSession(sessionId: string, userId: string) {
   return session;
 }
 
-async function callHaiku(
-  messages: { role: "user" | "assistant"; content: unknown }[],
-): Promise<string> {
-  const response = await anthropic.messages.create({
-    model: MODEL,
-    max_tokens: 1024,
-    system: SYSTEM_PROMPT,
-    messages: messages as unknown as Parameters<typeof anthropic.messages.create>[0]["messages"],
-  });
-  return response.content[0].type === "text" ? response.content[0].text : "";
-}
-
 async function handleStart(userId: string, body: Record<string, unknown>): Promise<Response> {
   const sessionId = String(body.session_id ?? "");
   const context = String(body.context ?? "");
@@ -145,11 +126,6 @@ async function handleStart(userId: string, body: Record<string, unknown>): Promi
     .filter(Boolean)
     .join("\n\n");
 
-  const imageContent = imageUrls.map((url) => ({
-    type: "image" as const,
-    source: { type: "url" as const, url },
-  }));
-
   const fallback: Draft = {
     content: `Sessão de trabalho de ${durationMinutes} minutos. ${imageUrls.length} screenshot(s) capturado(s).`,
     hours_worked: Math.max(0.25, Math.round((durationMinutes / 60) * 4) / 4),
@@ -157,11 +133,12 @@ async function handleStart(userId: string, body: Record<string, unknown>): Promi
 
   let responseText = "";
   try {
-    responseText = await callHaiku([
-      { role: "user", content: [...imageContent, { type: "text", text: userText }] },
+    const provider = resolveProvider();
+    responseText = await provider.generate(SYSTEM_PROMPT, [
+      { role: "user", text: userText, imageUrls },
     ]);
   } catch (e) {
-    console.error("[monitoramento] Anthropic API error:", e);
+    console.error("[monitoramento] LLM provider error:", e);
   }
 
   const draft = parseDraft(responseText, fallback);
@@ -192,16 +169,17 @@ async function handleChat(userId: string, body: Record<string, unknown>): Promis
     ? parseDraft(lastAssistant.content, { content: "", hours_worked: 0.25 })
     : { content: "", hours_worked: 0.25 };
 
-  const messages = [
-    ...(history ?? []).map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
-    { role: "user" as const, content: message },
+  const messages: NormalizedMessage[] = [
+    ...(history ?? []).map((m) => ({ role: m.role as "user" | "assistant", text: m.content })),
+    { role: "user" as const, text: message },
   ];
 
   let responseText = "";
   try {
-    responseText = await callHaiku(messages);
+    const provider = resolveProvider();
+    responseText = await provider.generate(SYSTEM_PROMPT, messages);
   } catch (e) {
-    console.error("[monitoramento] Anthropic API error:", e);
+    console.error("[monitoramento] LLM provider error:", e);
   }
 
   const draft = parseDraft(responseText, fallback);
