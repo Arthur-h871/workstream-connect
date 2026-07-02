@@ -8,9 +8,12 @@ A edge function `monitoramento` (ver [2026-07-01-monitoramento-prints-design.md]
 fala direto com o SDK da Anthropic, hardcoded para `claude-haiku-4-5-20251001`. Não
 existe camada de abstração — trocar de provedor hoje exigiria reescrever a função.
 
-Esta feature adiciona suporte ao Gemini como segundo provedor, configurável por
-organização, sem duplicar a lógica de orquestração (autenticação, carregamento de
-sessão/histórico, parsing/fallback de draft, persistência em `session_messages`).
+Esta feature vai adicionar suporte ao Gemini como segundo provedor, configurável
+por organização, sem duplicar a lógica de orquestração (autenticação, carregamento
+de sessão/histórico, parsing/fallback de draft, persistência em `session_messages`).
+
+**Nada abaixo está implementado ainda** — todo o resto deste documento descreve o
+estado proposto (pós-implementação), não o comportamento atual do código.
 
 ## Seleção do provedor
 
@@ -23,12 +26,12 @@ ALTER TABLE organizations
 ```
 
 `DEFAULT 'gemini'` — decisão explícita do usuário: todas as orgs (existentes e
-novas) passam a usar Gemini assim que a migration roda, inclusive orgs que já
-geraram apontamentos com Claude anteriormente. Um admin pode trocar de volta pra
-`anthropic` a qualquer momento pela UI (seção 5).
+novas) vão passar a usar Gemini assim que a migration rodar, inclusive orgs que já
+geraram apontamentos com Claude anteriormente. Um admin vai poder trocar de volta
+pra `anthropic` a qualquer momento pela UI (seção "UI de administração").
 
-A seleção é por organização inteira, não por sessão/usuário — todas as sessões de
-monitoramento daquela org usam o mesmo provedor até o admin trocar.
+A seleção será por organização inteira, não por sessão/usuário — todas as sessões
+de monitoramento daquela org vão usar o mesmo provedor até o admin trocar.
 
 ## Arquitetura: adapter por provedor
 
@@ -57,15 +60,16 @@ interface LLMProvider {
 }
 ```
 
-`index.ts` monta a lista de `NormalizedMessage` a partir do histórico de
-`session_messages` (igual já faz hoje) e chama `provider.generate(...)`. O parsing
-do JSON de resposta (`parseDraft`) e o fallback determinístico continuam genéricos
-em `index.ts`, fora dos adapters — os dois modelos recebem o mesmo `SYSTEM_PROMPT`
-pedindo JSON puro `{ content, hours_worked }`.
+`index.ts` vai montar a lista de `NormalizedMessage` a partir do histórico de
+`session_messages` (do mesmo jeito que já faz hoje pro formato da Anthropic) e
+chamar `provider.generate(...)`. O parsing do JSON de resposta (`parseDraft`) e o
+fallback determinístico vão continuar genéricos em `index.ts`, fora dos adapters —
+os dois modelos vão receber o mesmo `SYSTEM_PROMPT` pedindo JSON puro
+`{ content, hours_worked }`.
 
-`resolveProvider` é chamado uma vez por request, usando `organizations.ai_provider`
-carregado junto com `loadSession` (que já faz join implícito via
-`capture_sessions.organization_id`).
+`resolveProvider` vai ser chamado uma vez por request, usando
+`organizations.ai_provider` carregado junto com `loadSession` (que já faz join
+implícito via `capture_sessions.organization_id`).
 
 ## Diferença crítica: imagens
 
@@ -73,48 +77,51 @@ O adapter Anthropic manda `source: { type: "url", url }` — a signed URL do Sto
 direto, sem baixar a imagem no servidor (comportamento atual, inalterado).
 
 O Gemini **não aceita URLs arbitrárias de terceiros** — só `inlineData` (base64) ou
-arquivos pré-carregados no Google File API. O adapter Gemini precisa:
+arquivos pré-carregados no Google File API. O adapter Gemini vai precisar:
 
 1. Buscar cada signed URL via `fetch()` dentro da própria edge function.
 2. Converter o corpo da resposta pra base64.
 3. Montar `inlineData: { mimeType: "image/png", data: base64 }` por imagem.
 
-Esse custo extra (uma requisição HTTP + encode por imagem) só acontece quando
-`ai_provider = 'gemini'` — o caminho do Claude continua sem essa etapa.
+Esse custo extra (uma requisição HTTP + encode por imagem) só vai acontecer quando
+`ai_provider = 'gemini'` — o caminho do Claude continua sem essa etapa (comportamento
+atual do adapter Anthropic, inalterado).
 
 ## Modelo e SDK
 
 - Modelo: `gemini-2.5-flash` — equivalente de custo/velocidade ao Haiku, multimodal,
   adequado ao loop de chat iterativo (múltiplas chamadas por sessão).
-- SDK: `@google/generative-ai`, importado via `esm.sh` no mesmo padrão do SDK da
-  Anthropic (`https://esm.sh/@google/generative-ai@<versão>`) — a versão exata a
-  pinar é resolvida na implementação (ver Riscos).
-- Secret novo: `GEMINI_API_KEY`, configurado como secret da edge function
+- SDK: `@google/generative-ai`, a ser importado via `esm.sh` no mesmo padrão do
+  SDK da Anthropic (`https://esm.sh/@google/generative-ai@<versão>`) — a versão
+  exata a pinar é resolvida na implementação (ver Riscos).
+- Secret novo: `GEMINI_API_KEY`, a ser configurado como secret da edge function
   (mesmo mecanismo já usado para `ANTHROPIC_API_KEY`).
 
 ## Fallback e erros
 
-Mantém o padrão já existente: se a chamada ao provedor (Claude ou Gemini) falhar
-ou retornar JSON inválido, `index.ts` cai no fallback determinístico (texto
-genérico + horas estimadas pela duração da sessão) — comportamento não muda,
-apenas passa a cobrir falhas de qualquer um dos dois provedores.
+Vai manter o padrão já existente: se a chamada ao provedor (Claude ou Gemini)
+falhar ou retornar JSON inválido, `index.ts` cai no fallback determinístico (texto
+genérico + horas estimadas pela duração da sessão) — esse comportamento não muda,
+só passa a cobrir falhas de qualquer um dos dois provedores.
 
-Não há fallback automático entre provedores (ex: tentar Gemini e cair pro Claude
-se falhar) — está fora do escopo desta entrega. Cada org usa exclusivamente o
-provedor configurado.
+Não vai haver fallback automático entre provedores (ex: tentar Gemini e cair pro
+Claude se falhar) — está fora do escopo desta entrega. Cada org vai usar
+exclusivamente o provedor configurado.
 
 ## UI de administração
 
-Nova seção em `/admin/membros` (`src/routes/_authenticated.admin.membros.tsx`),
-visível apenas para `tenant_admin`/`master` (mesma guarda de rota já existente):
-um seletor "Modelo de IA para relatórios: Claude / Gemini", persistido via novo
+Nova seção a ser adicionada em `/admin/membros`
+(`src/routes/_authenticated.admin.membros.tsx`), visível apenas para
+`tenant_admin`/`master` (mesma guarda de rota já existente): um seletor "Modelo de
+IA para relatórios: Claude / Gemini", persistido via novo
 `updateOrgAiProvider(orgId, provider)` em `backend/api/services/organizations.service.ts`.
 
 ## Compatibilidade com dados existentes
 
 `session_messages` já armazena conteúdo normalizado (texto/JSON de draft), não o
-formato de wire de nenhum provedor específico — trocar o `ai_provider` de uma org
-no meio do uso não quebra sessões antigas nem exige migração de dados históricos.
+formato de wire de nenhum provedor específico — isso já é verdade hoje, antes
+mesmo desta feature. Por causa disso, trocar o `ai_provider` de uma org no meio do
+uso não vai quebrar sessões antigas nem vai exigir migração de dados históricos.
 
 ## Riscos / pontos a verificar durante a implementação
 
