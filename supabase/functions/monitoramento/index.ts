@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { resolveProvider } from "./providers/resolve.ts";
+import { resolveProvider, type AiProvider } from "./providers/resolve.ts";
 import type { NormalizedMessage, Draft } from "./providers/types.ts";
 
 const corsHeaders = {
@@ -75,13 +75,18 @@ function formatLinkedTasks(linkedTasks: LinkedTaskInput[]): string {
 async function loadSession(sessionId: string, userId: string) {
   const { data: session, error } = await supabase
     .from("capture_sessions")
-    .select("id, user_id, started_at, stopped_at")
+    .select("id, user_id, started_at, stopped_at, organizations(ai_provider)")
     .eq("id", sessionId)
     .single();
 
   if (error || !session) return null;
   if (session.user_id !== userId) return null;
   return session;
+}
+
+function resolveSessionProvider(session: { organizations: { ai_provider: string } | null }) {
+  const value = session.organizations?.ai_provider;
+  return resolveProvider((value === "gemini" ? "gemini" : "anthropic") as AiProvider);
 }
 
 async function handleStart(userId: string, body: Record<string, unknown>): Promise<Response> {
@@ -94,6 +99,8 @@ async function handleStart(userId: string, body: Record<string, unknown>): Promi
 
   const session = await loadSession(sessionId, userId);
   if (!session) return json({ error: "Session not found or forbidden" }, 403);
+
+  const provider = resolveSessionProvider(session);
 
   await supabase
     .from("capture_sessions")
@@ -133,7 +140,6 @@ async function handleStart(userId: string, body: Record<string, unknown>): Promi
 
   let responseText = "";
   try {
-    const provider = resolveProvider();
     responseText = await provider.generate(SYSTEM_PROMPT, [
       { role: "user", text: userText, imageUrls },
     ]);
@@ -158,6 +164,8 @@ async function handleChat(userId: string, body: Record<string, unknown>): Promis
   const session = await loadSession(sessionId, userId);
   if (!session) return json({ error: "Session not found or forbidden" }, 403);
 
+  const provider = resolveSessionProvider(session);
+
   const { data: history } = await supabase
     .from("session_messages")
     .select("role, content")
@@ -176,7 +184,6 @@ async function handleChat(userId: string, body: Record<string, unknown>): Promis
 
   let responseText = "";
   try {
-    const provider = resolveProvider();
     responseText = await provider.generate(SYSTEM_PROMPT, messages);
   } catch (e) {
     console.error("[monitoramento] LLM provider error:", e);
