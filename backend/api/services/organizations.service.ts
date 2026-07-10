@@ -44,14 +44,35 @@ export async function getOrgByCode(code: string): Promise<{ name: string } | nul
 
 export async function getMyOrganization(
   orgId: string,
-): Promise<{ id: string; name: string; code: string } | null> {
+): Promise<{
+  id: string;
+  name: string;
+  code: string;
+  ai_provider: "anthropic" | "gemini";
+} | null> {
   const { data, error } = await supabase
     .from("organizations")
-    .select("id, name, code")
+    .select("id, name, code, ai_provider")
     .eq("id", orgId)
     .single();
   if (error || !data) return null;
-  return data;
+  return data as {
+    id: string;
+    name: string;
+    code: string;
+    ai_provider: "anthropic" | "gemini";
+  };
+}
+
+export async function updateOrgAiProvider(
+  orgId: string,
+  provider: "anthropic" | "gemini",
+): Promise<void> {
+  const { error } = await supabase
+    .from("organizations")
+    .update({ ai_provider: provider })
+    .eq("id", orgId);
+  if (error) throw error;
 }
 
 export async function getOrgMembers(orgId: string): Promise<AdminOrgMember[]> {

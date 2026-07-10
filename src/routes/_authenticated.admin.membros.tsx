@@ -10,6 +10,7 @@ import {
   rejectMember,
   promoteToAdmin,
   removeMember,
+  updateOrgAiProvider,
   type AdminOrgMember,
   type PendingMember,
 } from "backend/api/services/organizations.service";
@@ -239,6 +240,49 @@ function PendingRow({
   );
 }
 
+function AiProviderSection({
+  orgId,
+  initialProvider,
+}: {
+  orgId: string;
+  initialProvider: "anthropic" | "gemini";
+}) {
+  const [provider, setProvider] = useState(initialProvider);
+  const [saving, setSaving] = useState(false);
+
+  function handleChange(next: "anthropic" | "gemini") {
+    const previous = provider;
+    setProvider(next);
+    setSaving(true);
+    updateOrgAiProvider(orgId, next)
+      .catch(() => {
+        setProvider(previous);
+        toast.error("Erro ao atualizar o modelo de IA.");
+      })
+      .finally(() => setSaving(false));
+  }
+
+  return (
+    <div className="mb-6 flex items-center justify-between rounded-lg border border-border bg-surface px-5 py-4">
+      <div>
+        <p className="text-sm font-medium">Modelo de IA para relatórios</p>
+        <p className="text-xs text-muted-foreground">
+          Usado para gerar os apontamentos a partir das sessões de monitoramento.
+        </p>
+      </div>
+      <select
+        value={provider}
+        onChange={(e) => handleChange(e.target.value as "anthropic" | "gemini")}
+        disabled={saving}
+        className="rounded-md border border-border bg-background px-3 py-1.5 text-sm disabled:opacity-50"
+      >
+        <option value="anthropic">Claude</option>
+        <option value="gemini">Gemini</option>
+      </select>
+    </div>
+  );
+}
+
 function Membros() {
   const {
     org,
@@ -301,6 +345,8 @@ function Membros() {
 
   return (
     <div>
+      {org && <AiProviderSection orgId={org.id} initialProvider={org.ai_provider} />}
+
       <div className="mb-6 flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
           Convide novos membros compartilhando o código da organização.
