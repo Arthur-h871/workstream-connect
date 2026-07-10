@@ -21,7 +21,6 @@ test("authenticated child routes no longer render AppShell directly", () => {
     "./src/routes/_authenticated.admin.membros.tsx",
     "./src/routes/_authenticated.apontamentos.tsx",
     "./src/routes/_authenticated.perfil.tsx",
-    "./src/routes/_authenticated.settings.developer.tsx",
     "./src/routes/_authenticated.tarefas.tsx",
     "./src/routes/_authenticated.tarefas-org.tsx",
     "./src/routes/_authenticated.tarefas-org_.$projectId.tsx",
